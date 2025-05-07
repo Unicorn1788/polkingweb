@@ -6,7 +6,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { TelegramLogo } from "@/components/icons/telegram-logo"
 import { XLogo } from "@/components/icons/x-logo"
-import { Tooltip } from "../components/ui/Tooltip"
+import { Tooltip } from "./ui/Tooltip"
 
 // Mock version for package.json
 const packageVersion = "1.0.0"
