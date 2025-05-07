@@ -1,120 +1,138 @@
-# Polking - Stake, Earn, Rule
+# POLKING - Staking Platform
 
-A modern staking platform with NFT rewards, referral system, and real-time tracking dashboard.
+A modern staking platform built with Next.js, Reown AppKit, and Wagmi for seamless blockchain interactions.
 
-## Features
+## 🚀 Features
 
-- Advanced staking platform with multiple tiers
-- NFT rewards and achievements
-- Referral system with rewards
-- Real-time tracking dashboard
-- Global pool distribution
-- Mobile-responsive design
-- Accessibility features
-- Performance optimizations
+- **Wallet Integration**: Seamless wallet connection using Reown AppKit
+- **Staking**: Stake POL tokens with customizable plans
+- **NFT Boosting**: Enhanced rewards through NFT staking
+- **Affiliate Program**: Earn rewards by referring others
+- **Real-time Updates**: Live transaction status and rewards tracking
+- **Responsive Design**: Beautiful UI with smooth animations
 
-## Tech Stack
+## 🛠️ Tech Stack
 
-- Next.js 14
-- TypeScript
-- Tailwind CSS
-- Framer Motion
-- Wagmi (Web3)
-- Jest & React Testing Library
-- ESLint & Prettier
+- **Framework**: Next.js 14
+- **Blockchain**: 
+  - Reown AppKit for wallet integration
+  - Wagmi for contract interactions
+  - Polygon Network
+- **UI/UX**:
+  - Tailwind CSS for styling
+  - Framer Motion for animations
+  - Lucide Icons
+- **State Management**: React Context
+- **Type Safety**: TypeScript
 
-## Getting Started
+## 📁 Project Structure
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/polking.git
-cd polking
+```
+polkingweb/
+├── app/                    # Next.js app directory
+│   ├── contracts/         # Smart contract ABIs
+│   └── layout.tsx         # Root layout
+├── components/            # React components
+│   ├── ui/               # Reusable UI components
+│   └── [feature]/        # Feature-specific components
+├── context/              # React context providers
+├── hooks/                # Custom React hooks
+├── lib/                  # Core utilities
+└── utils/                # Helper functions
 ```
 
-2. Install dependencies:
-```bash
-pnpm install
-```
+## 🔑 Key Components
 
-3. Create a `.env.local` file with required environment variables:
-```bash
-# WalletConnect
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
+### Core Components
 
-# RPC URLs
+- **WalletCard**: Displays connected wallet info and disconnect option
+- **WalletConnectionStatus**: Shows wallet connection state with network validation
+- **NFTBoosterSection**: NFT staking interface
+- **AffiliateSection**: Affiliate program interface
+
+### Blockchain Integration
+
+- **wagmi-config.ts**: Core blockchain configuration
+  - Contract interactions
+  - Network setup
+  - Transaction handling
+
+### Utilities
+
+- **transaction.ts**: Transaction-related utilities
+  - Explorer URL generation
+  - Transaction status handling
+  - Error parsing
+
+## 🔧 Configuration
+
+### Environment Variables
+
+```env
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
 NEXT_PUBLIC_RPC_POLYGON=your_polygon_rpc_url
+NEXT_PUBLIC_POLKING_ADDRESS=your_contract_address
 ```
 
-4. Start the development server:
-```bash
-pnpm dev
-```
+### Network Configuration
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+- **Mainnet**: Polygon (Chain ID: 137)
+- **Testnet**: Mumbai (Chain ID: 80001)
 
-## Development
+## 🚀 Getting Started
 
-- `pnpm dev` - Start development server
-- `pnpm build` - Build for production
-- `pnpm start` - Start production server
-- `pnpm lint` - Run ESLint
-- `pnpm test` - Run tests
-- `pnpm test:watch` - Run tests in watch mode
-- `pnpm test:coverage` - Run tests with coverage
+1. Install dependencies:
+   ```bash
+   pnpm install
+   ```
 
-## Project Structure
+2. Set up environment variables:
+   ```bash
+   cp .env.example .env
+   ```
 
-```
-├── app/                 # Next.js app directory
-│   ├── contracts/      # Smart contract interactions
-│   ├── globals.css     # Global styles
-│   ├── layout.tsx      # Root layout
-│   └── page.tsx        # Home page
-├── components/         # React components
-│   ├── ui/            # UI components
-│   └── wallet/        # Wallet-related components
-├── context/           # React context providers
-├── hooks/            # Custom React hooks
-├── lib/              # Utility functions
-├── public/           # Static assets
-├── styles/           # Global styles
-├── types/            # TypeScript types
-└── utils/            # Helper functions
-```
+3. Run development server:
+   ```bash
+   pnpm dev
+   ```
 
-## Wallet Integration
+## 📝 Contract Functions
 
-The platform supports multiple wallet providers:
-- MetaMask
-- WalletConnect
-- TokenPocket
-- Phantom
+### Staking
+- `stakePOL`: Stake POL tokens
+- `getStakingPlan`: Get staking plan details
+- `getPlanRate`: Get plan ROI and duration
+- `getUserStakingAmount`: Get user's staked amount
+- `getActiveStakesCount`: Get active stakes count
 
-Key wallet features:
-- Multi-wallet support
-- Network switching (Polygon)
-- Error handling
-- Connection persistence
-- Address copying
-- Explorer links
+### Rewards
+- `claimRewards`: Claim staking rewards
+- `getRewardsData`: Get rewards data (unclaimed, rate)
+
+## 🔒 Security
+
+- Environment variables for sensitive data
+- Type-safe contract interactions
+- Error handling and validation
+- Network validation
+
+## 🎨 UI/UX Features
+
+- Responsive design
 - Loading states
+- Error handling
+- Toast notifications
+- Smooth animations
+- Network status indicators
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
-## License
+## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- [Next.js](https://nextjs.org/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [Framer Motion](https://www.framer.com/motion/)
-- [Wagmi](https://wagmi.sh/)
-- [Lucide Icons](https://lucide.dev/)
+This project is licensed under the MIT License.

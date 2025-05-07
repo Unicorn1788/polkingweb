@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from "react"
 import { motion, useSpring, useMotionValue, useTransform } from "framer-motion"
 import { Gauge, Wallet, CreditCard, TrendingUp } from "lucide-react"
-import { useWallet } from "@/context/wallet-context"
+import { useAppKit, useAppKitAccount } from '@reown/appkit/react'
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi"
 import { POLKING_ADDRESS } from "@/lib/wagmi-config"
 import { toast } from "sonner"
 import { formatEther } from "viem"
 import { useQuery } from '@tanstack/react-query'
-import { useStakingQuery } from '@/hooks/use-staking-query'
+import POLKING from '@/app/contracts/POLKING.json'
+import { config } from '@/lib/wagmi-config'
 
 // Define ABI for the specific functions we're using
 const rewardsAbi = [
@@ -22,19 +23,19 @@ const rewardsAbi = [
   },
   {
     type: 'function',
-    name: 'getRewardsdOverviewData',
+    name: 'getRewardsOverviewData',
     stateMutability: 'view',
     inputs: [{ name: 'user', type: 'address' }],
     outputs: [
-      { name: 'totalPassiveeRewards', type: 'uint256' },
+      { name: 'totalPassiveRewards', type: 'uint256' },
       { name: 'totalActiveRewards', type: 'uint256' },
       { name: 'totalMaticPaid', type: 'uint256' },
-      { name: 'totalPKPaid', type: 'uint256' },
+      { name: 'totalTokenPaid', type: 'uint256' },
     ],
   },
   {
     type: 'function',
-    name: 'getLiveRewardData',
+    name: 'getLiveRewardsData',
     stateMutability: 'view',
     inputs: [{ name: 'user', type: 'address' }],
     outputs: [
@@ -52,11 +53,10 @@ interface UserTotals {
 }
 
 const RewardsOverview = () => {
-  const { openWalletModal, isConnected } = useWallet()
-  const { address } = useAccount()
+  const { open } = useAppKit()
+  const { address, isConnected } = useAppKitAccount()
   const [liveRewards, setLiveRewards] = useState(0)
   const [rewardsPerSecond, setRewardsPerSecond] = useState(0)
-  const { rewardsData, claimRewards, isClaiming } = useStakingQuery(address)
   const lastUpdateTime = useRef(Date.now())
   const springValue = useSpring(0, { stiffness: 100, damping: 30 })
   const displayValue = useMotionValue("0.0000")
@@ -70,7 +70,7 @@ const RewardsOverview = () => {
   })
 
   // Contract write setup
-  const { writeContract, data: hash } = useWriteContract()
+  const { writeContract, data: hash, isPending: isClaiming } = useWriteContract()
   
   // Wait for transaction
   const { isLoading: isTransactionPending, isSuccess: isTransactionSuccess } = useWaitForTransactionReceipt({
@@ -79,18 +79,18 @@ const RewardsOverview = () => {
 
   // Read rewards overview data
   const { data: rewardsOverview } = useReadContract({
-    address: POLKING_ADDRESS,
+    address: POLKING_ADDRESS as `0x${string}`,
     abi: rewardsAbi,
-    functionName: "getRewardsdOverviewData",
-    args: isConnected && address ? [address] : undefined,
+    functionName: "getRewardsOverviewData",
+    args: isConnected && address ? [address as `0x${string}`] : undefined,
   })
 
   // Read live rewards data
   const { data: liveRewardsData } = useReadContract({
-    address: POLKING_ADDRESS,
+    address: POLKING_ADDRESS as `0x${string}`,
     abi: rewardsAbi,
-    functionName: "getLiveRewardData",
-    args: isConnected && address ? [address] : undefined,
+    functionName: "getLiveRewardsData",
+    args: isConnected && address ? [address as `0x${string}`] : undefined,
   })
 
   // Update user totals when contract data changes
@@ -160,12 +160,15 @@ const RewardsOverview = () => {
   const handleClaimRewards = async () => {
     if (!isConnected || !address) {
       toast.error("Please connect your wallet.")
-      openWalletModal()
+      open()
       return
     }
-
     try {
-      await claimRewards()
+      writeContract({
+        address: POLKING_ADDRESS as `0x${string}`,
+        abi: rewardsAbi,
+        functionName: 'claim',
+      })
       toast.success("Claim transaction submitted!")
     } catch (error) {
       console.error("Claim error:", error)

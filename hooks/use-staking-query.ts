@@ -16,14 +16,14 @@ export function useStakingQuery(address: Address | undefined) {
   // Query for staking plan
   const { data: stakingPlan } = useQuery({
     queryKey: ['stakingPlan', address],
-    queryFn: () => getStakingPlan(address),
+    queryFn: () => getUserStakingAmount(address),
     enabled: !!address,
   })
 
   // Query for plan rate
   const { data: planRate } = useQuery({
     queryKey: ['planRate', stakingPlan],
-    queryFn: () => getPlanRate(stakingPlan),
+    queryFn: () => getPlanRate(stakingPlan || 0),
     enabled: !!stakingPlan,
   })
 
@@ -50,7 +50,7 @@ export function useStakingQuery(address: Address | undefined) {
 
   // Mutation for staking
   const stakeMutation = useMutation({
-    mutationFn: (amount: number) => stakePOL(amount),
+    mutationFn: (amount: number) => stakePOL(amount, address || "0x0000000000000000000000000000000000000000" as Address),
     onSuccess: () => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['stakingAmount'] })

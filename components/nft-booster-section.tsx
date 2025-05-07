@@ -3,18 +3,15 @@
 import { useState, useEffect } from "react"
 import { Shield, TrendingUp, Award, Zap, User, Info, Clock, X } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useWallet } from "@/context/wallet-context"
-import { useReadContract, useWriteContract } from "wagmi"
-import { POLKING_ADDRESS } from "@/lib/wagmi-config"
-import { formatEther, Address } from "viem"
-import POLKING_ABI from "@/app/contracts/POLKING.json"
-import { useToast } from "@/context/toast-context"
-
-// Get the ABI from the imported JSON
-const { abi } = POLKING_ABI
+import { useAppKit, useAppKitAccount } from '@reown/appkit/react'
+import { useReadContract, useWriteContract } from 'wagmi'
+import { parseEther } from 'viem'
+import POLKING from '@/app/contracts/POLKING.json'
+import { getDownlineBatchInfo, POLKING_ADDRESS, config } from '@/lib/wagmi-config'
+import { readContract } from '@wagmi/core'
 
 // Define rank types
-type RankType = 0 | 1 | 2 | 3 | 4;
+type RankType = 0 | 1 | 2 | 3 | 4
 
 // Define rank progression data
 const rankProgressionData = {
@@ -43,7 +40,7 @@ const rankProgressionData = {
     poolShare: 10,
     nextRank: "Duke",
     requiredVolume: 45000,
-    upgradeTime: 100 * 24 * 60 * 60, // 100 days in seconds
+    upgradeTime: 25 * 24 * 60 * 60, // 25 days in seconds
   },
   3: {
     name: "Duke",
@@ -52,7 +49,7 @@ const rankProgressionData = {
     poolShare: 15,
     nextRank: "King",
     requiredVolume: 100000,
-    upgradeTime: 150 * 24 * 60 * 60, // 150 days in seconds
+    upgradeTime: 25 * 24 * 60 * 60, // 25 days in seconds
   },
   4: {
     name: "King",
@@ -63,7 +60,7 @@ const rankProgressionData = {
     requiredVolume: null,
     upgradeTime: 0,
   },
-} as const;
+} as const
 
 // Define burn requirements by rank
 const burnRequirements = {
@@ -72,60 +69,106 @@ const burnRequirements = {
   2: 20000,
   3: 50000,
   4: 0,
-} as const;
+} as const
 
-// Define branch totals type
-interface BranchTotals {
-  top1Address: Address;
-  top1Volume: bigint;
-  top2Address: Address;
-  top2Volume: bigint;
-}
+// Mock data for affiliates
+const mockAffiliates = [
+  {
+    address: "0x1234...5678",
+    volume: 2500,
+    targetVolume: 5000,
+    progress: 50,
+  },
+  {
+    address: "0x8765...4321",
+    volume: 1200,
+    targetVolume: 5000,
+    progress: 24,
+  },
+]
 
 const NFTBoosterSection = () => {
-  const { address, openWalletModal } = useWallet()
+  const { address } = useAppKitAccount()
+  const [userRank, setUserRank] = useState<RankType>(0)
   const [upgradeTimestamp, setUpgradeTimestamp] = useState<number | null>(null)
   const [timeLeft, setTimeLeft] = useState(0)
-  const [hasStaked, setHasStaked] = useState(false)
+  const [hasStaked, setHasStaked] = useState(true)
   const [showBurnModal, setShowBurnModal] = useState(false)
-  const [burnAmount, setBurnAmount] = useState("")
   const [balance, setBalance] = useState(0)
-  const { showToast } = useToast()
+  const [affiliates, setAffiliates] = useState<any[]>([])
+  const [hoveredAddress, setHoveredAddress] = useState<number | null>(null)
+  const [showTooltip, setShowTooltip] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Get user's current rank
-  const { data: userRank, isLoading: rankLoading } = useReadContract({
-    address: POLKING_ADDRESS,
-    abi: abi,
-    functionName: 'getUserRank',
-    args: [address || "0x0000000000000000000000000000000000000000" as Address],
+  // Contract read for balance
+  const { data: tokenBalance } = useReadContract({
+    address: process.env.NEXT_PUBLIC_POLKING_ADDRESS as `0x${string}`,
+    abi: POLKING.abi,
+    functionName: 'balanceOf',
+    args: [address],
+    query: {
+      enabled: !!address,
+    }
   })
 
-  // Get top 2 branch totals
-  const { data: branchTotals, isLoading: branchLoading } = useReadContract({
-    address: POLKING_ADDRESS,
-    abi: abi,
-    functionName: 'getTop2BranchTotals',
-    args: [address || "0x0000000000000000000000000000000000000000" as Address],
-  })
+  // Contract write for burning
+  const { writeContract: burnTokens } = useWriteContract()
 
-  // Get user balance
-  const { data: userBalance } = useReadContract ({
-    address: POLKING_ADDRESS,
-    abi: abi,
-    functionName: 'top1Address',
-    args: [address || "0x0000000000000000000000000000000000000000" as Address],
-  })
+  // Fetch real data on mount/address change
+  useEffect(() => {
+    if (!address) return
+    setIsLoading(true)
+    Promise.all([
+      readContract(config, {
+        abi: POLKING.abi,
+        address: POLKING_ADDRESS as `0x${string}`,
+        functionName: 'getUserRank',
+        args: [address],
+      }) as Promise<number>,
+      readContract(config, {
+        abi: POLKING.abi,
+        address: POLKING_ADDRESS as `0x${string}`,
+        functionName: 'lastRankedUpTime',
+        args: [address],
+      }) as Promise<bigint>,
+      readContract(config, {
+        abi: POLKING.abi,
+        address: POLKING_ADDRESS as `0x${string}`,
+        functionName: 'getTop2BranchTotals',
+        args: [address],
+      }) as Promise<[string, bigint, string, bigint]>
+    ]).then(([rank, lastRankedUp, top2]) => {
+      setUserRank(Number(rank) as RankType)
+      setUpgradeTimestamp(Number(lastRankedUp))
+      const currentRankData = rankProgressionData[Number(rank) as RankType]
+      const requiredVolume = currentRankData.requiredVolume || 0
+      const [top1Address, top1Volume, top2Address, top2Volume] = top2
+      setAffiliates([
+        {
+          address: top1Address,
+          volume: Number(top1Volume),
+          targetVolume: requiredVolume,
+          progress: requiredVolume ? Math.min(100, (Number(top1Volume) / requiredVolume) * 100) : 0,
+        },
+        {
+          address: top2Address,
+          volume: Number(top2Volume),
+          targetVolume: requiredVolume,
+          progress: requiredVolume ? Math.min(100, (Number(top2Volume) / requiredVolume) * 100) : 0,
+        },
+      ])
+    }).finally(() => setIsLoading(false))
+  }, [address])
 
-  // Extract current rank data with default value
-  const currentRank = rankProgressionData[Number(userRank || 0) as RankType] || rankProgressionData[0]
+  // Update balance from contract
+  useEffect(() => {
+    if (tokenBalance) {
+      setBalance(Number(tokenBalance))
+    }
+  }, [tokenBalance])
 
-  // Extract branch totals data
-  const { top1Address, top1Volume, top2Address, top2Volume } = (branchTotals as BranchTotals) || {
-    top1Address: "0x0000000000000000000000000000000000000000" as Address,
-    top1Volume: BigInt(0),
-    top2Address: "0x0000000000000000000000000000000000000000" as Address,
-    top2Volume: BigInt(0)
-  }
+  // Extract current rank data
+  const currentRank = rankProgressionData[userRank]
 
   // Format number with spaces instead of commas
   const formatNumber = (num: number | bigint | null | undefined) => {
@@ -134,53 +177,33 @@ const NFTBoosterSection = () => {
   }
 
   // Calculate progress percentages for branches
-  const getProgressPercentage = (volume: bigint) => {
-    if (!currentRank?.requiredVolume) return 0
-    return Math.min(100, (Number(volume) / currentRank.requiredVolume) * 100)
+  const getProgressPercentage = (volume: number) => {
+    if (!currentRank.requiredVolume) return 0
+    return Math.min(100, (volume / currentRank.requiredVolume) * 100)
   }
 
-  const top1Progress = getProgressPercentage(top1Volume)
-  const top2Progress = getProgressPercentage(top2Volume)
-
-  // Initialize affiliates state with default values
-  const [affiliates, setAffiliates] = useState([
-    {
-      address: "0x0000000000000000000000000000000000000000" as Address,
-      volume: 0,
-      targetVolume: currentRank?.requiredVolume || 0,
-      progress: 0
-    },
-    {
-      address: "0x0000000000000000000000000000000000000000" as Address,
-      volume: 0,
-      targetVolume: currentRank?.requiredVolume || 0,
-      progress: 0
-    }
-  ])
-
+  // Simulate loading data
   useEffect(() => {
-    // Check if user has staked
-    const stakedTimestamp = localStorage.getItem("first_stake_timestamp")
-    if (stakedTimestamp) {
-      setHasStaked(true)
-      // If user is recruit and has staked, use stake timestamp
-      if (Number(userRank || 0) === 0) {
-        setUpgradeTimestamp(parseInt(stakedTimestamp))
-      } else {
-        // For other ranks, use upgrade timestamp
-        const savedTimestamp = localStorage.getItem(`rank_upgrade_${Number(userRank || 0)}`)
-        if (savedTimestamp) {
-          setUpgradeTimestamp(parseInt(savedTimestamp))
-        } else {
-          setUpgradeTimestamp(null)
-        }
-      }
-    } else {
-      setHasStaked(false)
-      setUpgradeTimestamp(null)
-    }
-  }, [userRank])
+    const timer = setTimeout(() => {
+      setIsLoading(false)
 
+      // Set mock upgrade timestamp (30 days ago)
+      const mockTimestamp = Math.floor(Date.now() / 1000) - 20 * 24 * 60 * 60
+      setUpgradeTimestamp(mockTimestamp)
+
+      // Update affiliates with proper progress calculations
+      setAffiliates(
+        affiliates.map((affiliate) => ({
+          ...affiliate,
+          progress: getProgressPercentage(affiliate.volume),
+        })),
+      )
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Update time left calculation
   useEffect(() => {
     if (!upgradeTimestamp || !currentRank.upgradeTime) return
 
@@ -194,101 +217,56 @@ const NFTBoosterSection = () => {
     return () => clearInterval(timer)
   }, [upgradeTimestamp, currentRank.upgradeTime])
 
-  useEffect(() => {
-    if (userBalance) {
-      setBalance(Number(formatEther(userBalance as bigint)))
-    }
-  }, [userBalance])
-
   const daysLeft = Math.floor(timeLeft / (24 * 60 * 60))
   const progress = currentRank.upgradeTime ? ((currentRank.upgradeTime - timeLeft) / currentRank.upgradeTime) * 100 : 0
 
-  // Update affiliates when branch totals change
-  useEffect(() => {
-    if (branchTotals) {
-      const { top1Address, top1Volume, top2Address, top2Volume } = branchTotals as BranchTotals
-      const targetVolume = currentRank.requiredVolume || 0
-      
-      setAffiliates([
-        {
-          address: top1Address,
-          volume: top1Volume ? Number(formatEther(top1Volume)) : 0,
-          targetVolume,
-          progress: top1Progress
-        },
-        {
-          address: top2Address,
-          volume: top2Volume ? Number(formatEther(top2Volume)) : 0,
-          targetVolume,
-          progress: top2Progress
-        }
-      ])
-    }
-  }, [branchTotals, currentRank.requiredVolume, top1Progress, top2Progress])
-
-  const [hoveredAddress, setHoveredAddress] = useState<number | null>(null)
-  const [showTooltip, setShowTooltip] = useState(false)
-
-  // Add contract write hooks
-  const { writeContract: writeFastTrack } = useWriteContract()
-  const { writeContract: writeUpgradeRank } = useWriteContract()
-
-  // Handle burn action
-  const handleBurn = async () => {
-    const requiredAmount = getBurnRequirement(Number(userRank || 0))
-    if (!requiredAmount || !address) return
-
-    try {
-      showToast({ type: "loading", title: "Processing Burn", message: "Please wait while we process your transaction" })
-      await writeFastTrack({
-        address: POLKING_ADDRESS,
-        abi: abi,
-        functionName: "processfastTrackCooldown",
-        args: [BigInt(requiredAmount)],
-      })
-      showToast({ type: "success", title: "Burn Successful", message: `Successfully burned ${formatNumber(requiredAmount)} PK` })
-      setShowBurnModal(false)
-    } catch (error) {
-      console.error("Error burning tokens:", error)
-      showToast({ type: "error", title: "Burn Failed", message: "Failed to burn tokens. Please try again." })
-    }
-  }
-
-  // Handle upgrade rank
-  const handleUpgradeRank = async () => {
-    if (!address) {
-      openWalletModal()
-      return
-    }
-
-    try {
-      showToast({ type: "loading", title: "Processing Upgrade", message: "Please wait while we process your rank upgrade" })
-      await writeUpgradeRank({
-        address: POLKING_ADDRESS,
-        abi: abi,
-        functionName: "claimRank",
-      })
-      showToast({ type: "success", title: "Rank Upgraded", message: `Successfully upgraded to ${currentRank.nextRank}` })
-    } catch (error) {
-      console.error("Error upgrading rank:", error)
-      showToast({ type: "error", title: "Upgrade Failed", message: "Failed to upgrade rank. Please try again." })
-    }
-  }
-
-  // Handle info tooltip
+  // Toggle tooltip
   const toggleTooltip = () => {
     setShowTooltip(!showTooltip)
   }
 
-  // Update burn requirement references
+  // Get burn requirement
   const getBurnRequirement = (rank: number) => {
     return burnRequirements[rank as RankType] || 0
   }
 
-  // Update burn button text
+  // Get burn button text
   const getBurnButtonText = () => {
-    const amount = getBurnRequirement(Number(userRank || 0))
+    const amount = getBurnRequirement(userRank)
     return `Burn ${formatNumber(amount)} PK`
+  }
+
+  // Handle burn action with contract interaction
+  const handleBurn = async () => {
+    if (!address) return
+
+    try {
+      await burnTokens({
+        address: process.env.NEXT_PUBLIC_POLKING_ADDRESS as `0x${string}`,
+        abi: POLKING.abi,
+        functionName: 'burn',
+        args: [parseEther(getBurnRequirement(userRank).toString())],
+      })
+      
+      setShowBurnModal(false)
+      if (userRank < 4) {
+        setUserRank((prev) => (prev + 1) as RankType)
+      }
+    } catch (error) {
+      console.error('Burn failed:', error)
+      // Handle error (show toast, etc.)
+    }
+  }
+
+  // Handle upgrade rank
+  const handleUpgradeRank = () => {
+    // Simulate rank upgrade if not at max rank
+    if (userRank < 4) {
+      setUserRank((prev) => (prev + 1) as RankType)
+      alert(`Successfully upgraded to ${currentRank.nextRank}!`)
+    } else {
+      alert("You've already reached the maximum rank!")
+    }
   }
 
   return (
@@ -345,7 +323,7 @@ const NFTBoosterSection = () => {
           transition={{ duration: 0.6 }}
           className="rounded-2xl backdrop-blur-xl bg-gradient-to-br from-black/80 via-[#0f0c1a]/80 to-[#0b0514]/80 border border-[#a58af8] shadow-[0_0_40px_rgba(165,138,248,0.4)] overflow-hidden"
         >
-          {rankLoading || branchLoading ? (
+          {isLoading ? (
             <div className="flex items-center justify-center p-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#a58af8]"></div>
               <span className="ml-3 text-white/70">Loading rank data...</span>
@@ -421,69 +399,56 @@ const NFTBoosterSection = () => {
 
                     {/* Affiliate Progress Bars - Tighter stacking */}
                     <div className="space-y-2.5">
-                      {affiliates.map((affiliate, index) => {
-                        const progressPercent = index === 0 ? top1Progress : top2Progress
-
-                        return (
-                          <div
-                            key={index}
-                            className="bg-[#0f0c1a]/50 rounded-xl p-2.5 border border-[#a58af8]/20 hover:border-[#a58af8]/40 transition-all duration-300"
-                            onMouseEnter={() => setHoveredAddress(index)}
-                            onMouseLeave={() => setHoveredAddress(null)}
-                          >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-5 h-5 rounded-full bg-[#0f0c1a] border border-[#a58af8]/40 flex items-center justify-center flex-shrink-0">
-                                  <User size={10} className="text-[#a58af8]" />
-                                </div>
-                                <p className="text-xs font-medium text-white/90 truncate">
-                                  {affiliate.address && affiliate.address !== "0x0000000000000000000000000000000000000000" 
-                                    ? `${affiliate.address.slice(0, 6)}...${affiliate.address.slice(-4)}`
-                                    : index === 0 && top1Address && top1Address !== "0x0000000000000000000000000000000000000000"
-                                    ? `${top1Address.slice(0, 6)}...${top1Address.slice(-4)}`
-                                    : index === 1 && top2Address && top2Address !== "0x0000000000000000000000000000000000000000"
-                                    ? `${top2Address.slice(0, 6)}...${top2Address.slice(-4)}`
-                                    : "No affiliate yet"
-                                  }
-                                </p>
+                      {affiliates.map((affiliate, index) => (
+                        <div
+                          key={index}
+                          className="bg-[#0f0c1a]/50 rounded-xl p-2.5 border border-[#a58af8]/20 hover:border-[#a58af8]/40 transition-all duration-300"
+                          onMouseEnter={() => setHoveredAddress(index)}
+                          onMouseLeave={() => setHoveredAddress(null)}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-5 h-5 rounded-full bg-[#0f0c1a] border border-[#a58af8]/40 flex items-center justify-center flex-shrink-0">
+                                <User size={10} className="text-[#a58af8]" />
                               </div>
-                              <p className="text-[10px] font-medium text-[#facc15]">
-                                {progressPercent.toFixed(0)}% Complete
-                              </p>
+                              <p className="text-xs font-medium text-white/90 truncate">{affiliate.address}</p>
                             </div>
-
-                            <div className="relative h-1.5 bg-[#0f0c1a]/70 rounded-full overflow-hidden border border-[#a58af8]/20">
-                              <motion.div
-                                initial={{ width: "0%" }}
-                                animate={{ width: `${progressPercent}%` }}
-                                transition={{ duration: 1, ease: "easeOut" }}
-                                className="absolute top-0 left-0 h-full bg-gradient-to-r from-[#a58af8] to-[#facc15] rounded-full"
-                              >
-                                <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.1)_0%,rgba(255,255,255,0.3)_50%,rgba(255,255,255,0.1)_100%)] animate-shimmer-effect"></div>
-                              </motion.div>
-
-                              {/* Hover tooltip */}
-                              <AnimatePresence>
-                                {hoveredAddress === index && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: -20 }}
-                                    animate={{ opacity: 1, y: -25 }}
-                                    exit={{ opacity: 0, y: -20 }}
-                                    className="absolute left-1/2 -translate-x-1/2 -top-1 px-2 py-0.5 rounded-md bg-[#0f0c1a] border border-[#a58af8]/30 text-[10px] text-white whitespace-nowrap"
-                                  >
-                                    {formatNumber(affiliate.volume)} / {formatNumber(affiliate.targetVolume)} PK
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </div>
-
-                            <div className="flex justify-between mt-1 text-[10px] text-white/50">
-                              <span>Current: {formatNumber(affiliate.volume)} PK</span>
-                              <span>Target: {formatNumber(affiliate.targetVolume)} PK</span>
-                            </div>
+                            <p className="text-[10px] font-medium text-[#facc15]">
+                              {affiliate.progress.toFixed(0)}% Complete
+                            </p>
                           </div>
-                        )
-                      })}
+
+                          <div className="relative h-1.5 bg-[#0f0c1a]/70 rounded-full overflow-hidden border border-[#a58af8]/20">
+                            <motion.div
+                              initial={{ width: "0%" }}
+                              animate={{ width: `${affiliate.progress}%` }}
+                              transition={{ duration: 1, ease: "easeOut" }}
+                              className="absolute top-0 left-0 h-full bg-gradient-to-r from-[#a58af8] to-[#facc15] rounded-full"
+                            >
+                              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.1)_0%,rgba(255,255,255,0.3)_50%,rgba(255,255,255,0.1)_100%)] animate-shimmer-effect"></div>
+                            </motion.div>
+
+                            {/* Hover tooltip */}
+                            <AnimatePresence>
+                              {hoveredAddress === index && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: -20 }}
+                                  animate={{ opacity: 1, y: -25 }}
+                                  exit={{ opacity: 0, y: -20 }}
+                                  className="absolute left-1/2 -translate-x-1/2 -top-1 px-2 py-0.5 rounded-md bg-[#0f0c1a] border border-[#a58af8]/30 text-[10px] text-white whitespace-nowrap"
+                                >
+                                  {formatNumber(affiliate.volume)} / {formatNumber(affiliate.targetVolume)} PK
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+
+                          <div className="flex justify-between mt-1 text-[10px] text-white/50">
+                            <span>Current: {formatNumber(affiliate.volume)} PK</span>
+                            <span>Target: {formatNumber(affiliate.targetVolume)} PK</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -497,13 +462,11 @@ const NFTBoosterSection = () => {
                         <h4 className="text-sm font-semibold text-white/90">Time to {currentRank.nextRank}</h4>
                       </div>
                       <p className="text-[10px] font-medium text-[#facc15]">
-                        {Number(userRank || 0) === 0 && !hasStaked ? (
-                          "Start staking to begin"
-                        ) : upgradeTimestamp ? (
-                          `${daysLeft} days remaining`
-                        ) : (
-                          "Not started"
-                        )}
+                        {!hasStaked
+                          ? "Start staking to begin"
+                          : upgradeTimestamp
+                            ? `${daysLeft} days remaining`
+                            : "Not started"}
                       </p>
                     </div>
 
@@ -521,11 +484,11 @@ const NFTBoosterSection = () => {
 
                     <div className="flex justify-between items-center mt-2">
                       <div className="flex gap-2 text-[10px] text-white/50">
-                        <span>Days: {daysLeft} / {currentRank.upgradeTime / (24 * 60 * 60)} days</span>
+                        <span>
+                          Days: {daysLeft} / {currentRank.upgradeTime / (24 * 60 * 60)} days
+                        </span>
                       </div>
-                      <div className="text-[10px] text-[#facc15]">
-                        Balance: {formatNumber(balance)} PK
-                      </div>
+                      <div className="text-[10px] text-[#facc15]">Balance: {formatNumber(balance)} PK</div>
                     </div>
                     <button
                       onClick={() => setShowBurnModal(true)}
@@ -598,21 +561,20 @@ const NFTBoosterSection = () => {
               >
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold text-white">Burn PK to Upgrade</h3>
-                  <button
-                    onClick={() => setShowBurnModal(false)}
-                    className="text-white/60 hover:text-white"
-                  >
+                  <button onClick={() => setShowBurnModal(false)} className="text-white/60 hover:text-white">
                     <X size={20} />
                   </button>
                 </div>
-                
+
                 <div className="mb-4">
                   <p className="text-sm text-white/70 mb-2">
-                    Burn {formatNumber(getBurnRequirement(Number(userRank || 0)))} PK to instantly upgrade to {currentRank.nextRank}
+                    Burn {formatNumber(getBurnRequirement(userRank))} PK to instantly upgrade to {currentRank.nextRank}
                   </p>
                   <div className="w-full px-3 py-2 bg-[#0a0118] border border-[#a58af8]/30 rounded-lg text-white flex items-center justify-between">
                     <span className="text-white/70">Amount to burn:</span>
-                    <span className="font-semibold text-[#facc15]">{formatNumber(getBurnRequirement(Number(userRank || 0)))} PK</span>
+                    <span className="font-semibold text-[#facc15]">
+                      {formatNumber(getBurnRequirement(userRank))} PK
+                    </span>
                   </div>
                 </div>
 
@@ -620,7 +582,7 @@ const NFTBoosterSection = () => {
                   onClick={handleBurn}
                   className="w-full px-4 py-2 bg-gradient-to-r from-[#a58af8] to-[#facc15] rounded-lg text-black font-semibold hover:opacity-90 transition-opacity"
                 >
-                  Burn {formatNumber(getBurnRequirement(Number(userRank || 0)))} PK
+                  Burn {formatNumber(getBurnRequirement(userRank))} PK
                 </button>
               </motion.div>
             </motion.div>

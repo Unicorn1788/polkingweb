@@ -4,10 +4,12 @@ import { motion, useAnimation, useInView } from "framer-motion"
 import { ArrowUp, Github, Download, FileText } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import packageInfo from "../package.json"
-import { TelegramLogo } from "./icons/telegram-logo"
-import { XLogo } from "./icons/x-logo"
-import { Tooltip } from "./ui/tooltip"
+import { TelegramLogo } from "@/components/icons/telegram-logo"
+import { XLogo } from "@/components/icons/x-logo"
+import { Tooltip } from "@/components/ui/Tooltip"
+
+// Mock version for package.json
+const packageVersion = "1.0.0"
 
 const FooterSection = () => {
   const [isVisible, setIsVisible] = useState(false)
@@ -179,7 +181,7 @@ const FooterSection = () => {
                 Polking
               </h3>
             </div>
-            <p className="text-white/60 text-sm text-center max-w-xs">Built with Vision, Secured by Smartcontracts.</p>
+            <p className="text-white/60 text-sm text-center max-w-xs">Built with Vision, Powered by Innovation.</p>
           </div>
 
           {/* Social Media Icons with Staggered Animation */}
@@ -226,9 +228,9 @@ const FooterSection = () => {
         {/* Copyright and Version */}
         <div className="text-center">
           <p className="text-white/40 text-xs mb-1">
-            Built with vision and secured with code — © {new Date().getFullYear()} Polking.
+            Built with vision and powered by innovation — © {new Date().getFullYear()} Polking.
           </p>
-          <p className="text-white/30 text-xs">Version {packageInfo.version}</p>
+          <p className="text-white/30 text-xs">Version {packageVersion}</p>
         </div>
 
         {/* Back to top button */}

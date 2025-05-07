@@ -1,7 +1,19 @@
+/**
+ * @file wallet-connection-status.tsx
+ * @description Wallet connection status indicator component
+ * 
+ * This component displays the current wallet connection status,
+ * including network validation and connection state.
+ * 
+ * IMPORTANT: When updating network configuration:
+ * 1. Update POLYGON_CHAIN_ID in wagmi-config.ts
+ * 2. Update network validation logic if needed
+ */
+
 "use client"
 
 import { useAccount, useChainId } from "wagmi"
-import { POLYGON_CHAIN_ID } from "@/lib/constants"
+import { POLYGON_CHAIN_ID } from "@/lib/wagmi-config"
 import { CheckCircle2, AlertTriangle, Loader2, WifiOff } from "lucide-react"
 import { motion } from "framer-motion"
 
@@ -11,6 +23,14 @@ interface WalletConnectionStatusProps {
   className?: string
 }
 
+/**
+ * WalletConnectionStatus Component
+ * Displays the current wallet connection status with network validation
+ * 
+ * @param {boolean} showLabel - Whether to show the status label
+ * @param {boolean} showTooltip - Whether to show the tooltip on hover
+ * @param {string} className - Additional CSS classes
+ */
 export default function WalletConnectionStatus({
   showLabel = true,
   showTooltip = false,
@@ -21,7 +41,10 @@ export default function WalletConnectionStatus({
 
   const isWrongNetwork = isConnected && chainId !== POLYGON_CHAIN_ID
 
-  // Tooltip content based on status
+  /**
+   * Get tooltip content based on connection status
+   * @returns {string} Tooltip message
+   */
   const getTooltipContent = () => {
     if (isConnecting) return "Connecting to wallet..."
     if (!isConnected) return "Wallet not connected"
@@ -29,6 +52,7 @@ export default function WalletConnectionStatus({
     return "Connected to Polygon network"
   }
 
+  // Loading state
   if (isConnecting) {
     return (
       <div className={`relative flex items-center gap-1.5 ${className}`}>
@@ -49,6 +73,7 @@ export default function WalletConnectionStatus({
     )
   }
 
+  // Disconnected state
   if (!isConnected) {
     return (
       <div className={`relative group flex items-center gap-1.5 ${className}`}>
@@ -69,6 +94,7 @@ export default function WalletConnectionStatus({
     )
   }
 
+  // Wrong network state
   if (isWrongNetwork) {
     return (
       <div className={`relative group flex items-center gap-1.5 ${className}`}>
@@ -86,6 +112,7 @@ export default function WalletConnectionStatus({
     )
   }
 
+  // Connected state
   return (
     <div className={`relative group flex items-center gap-1.5 ${className}`}>
       <motion.div

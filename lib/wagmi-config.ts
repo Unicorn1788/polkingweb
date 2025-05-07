@@ -1,116 +1,77 @@
-import { Address, parseEther } from "viem"
-import { createConfig, http } from "wagmi"
-import { polygon } from "wagmi/chains"
+/**
+ * @file wagmi-config.ts
+ * @description Core blockchain configuration and contract interactions
+ * 
+ * This file contains all blockchain-related configurations and contract interaction functions.
+ * It uses Reown AppKit and Wagmi for wallet integration and contract interactions.
+ * 
+ * IMPORTANT: When updating contract addresses:
+ * 1. Update NEXT_PUBLIC_POLKING_ADDRESS in .env
+ * 2. The ABI in app/contracts/POLKING.json should remain the same
+ * 3. Update any related contract addresses in other files
+ */
+
+import { cookieStorage, createStorage, http } from '@wagmi/core'
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
+import { polygon } from '@reown/appkit/networks'
 import { readContract, writeContract } from "@wagmi/core"
-import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors"
+import type { Address } from "viem"
+import { parseEther } from "viem"
 import POLKING from "@/app/contracts/POLKING.json"
 import { logger } from "./logger"
 
-export const POLKING_ADDRESS = "0x33041aaB2d4E13881Dc4AF8e0E0001E25666503A" as Address
+// Get projectId from environment
+export const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ""
 
-// Get WalletConnect project ID from environment variable
-const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ""
-
-// Define custom window type for wallets
-declare global {
-  interface Window {
-    ethereum?: {
-      isMetaMask?: boolean
-      isCoinbaseWallet?: boolean
-      isTokenPocket?: boolean
-      providers?: Array<{
-        isMetaMask?: boolean
-        isCoinbaseWallet?: boolean
-        isTokenPocket?: boolean
-        [key: string]: any
-      }>
-      request?: (args: { method: string; params?: any[] }) => Promise<any>
-      on?: (event: string, callback: (...args: any[]) => void) => void
-      removeListener?: (event: string, callback: (...args: any[]) => void) => void
-      [key: string]: any
-    }
-    phantom?: {
-      ethereum?: any
-    }
-    tokenpocket?: {
-      ethereum?: any
-    }
-    coinbaseWalletExtension?: {
-      isMetaMask?: boolean
-      isConnected?: () => boolean
-      providers?: any[]
-      request?: (args: { method: string; params?: any[] }) => Promise<any>
-      on?: (event: string, callback: (...args: any[]) => void) => void
-      removeListener?: (event: string, callback: (...args: any[]) => void) => void
-    }
-  }
+if (!projectId) {
+  throw new Error('Project ID is not defined')
 }
 
-// Create wagmi config with retry logic
-export const config = createConfig({
-  chains: [polygon],
-  connectors: [
-    // MetaMask
-    injected({
-      target: {
-        id: 'metaMask',
-        name: 'MetaMask',
-        provider: typeof window !== 'undefined' ? window.ethereum : undefined,
-      },
-      shimDisconnect: true,
-    }),
-    // WalletConnect
-    walletConnect({
-      projectId: walletConnectProjectId,
-      showQrModal: true,
-      metadata: {
-        name: "Polking Finance",
-        description: "Stake like a king. Rise through the ranks. Reign with rewards.",
-        url: "https://polking.io",
-        icons: ["https://polking.io/images/polking-logo.png"],
-      },
-    }),
-    // Coinbase Wallet
-    coinbaseWallet({
-      appName: "Polking Finance",
-      appLogoUrl: "https://polking.io/images/polking-logo.png",
-      darkMode: true,
-      enableMobileWalletLink: true,
-    }),
-    // TokenPocket
-    injected({
-      target: {
-        id: 'tokenPocket',
-        name: 'TokenPocket',
-        provider: typeof window !== 'undefined' ? window.tokenpocket?.ethereum : undefined,
-      },
-      shimDisconnect: true,
-    }),
-    // Phantom
-    injected({
-      target: {
-        id: 'phantom',
-        name: 'Phantom',
-        provider: typeof window !== 'undefined' ? window.phantom?.ethereum : undefined,
-      },
-      shimDisconnect: true,
-    }),
-  ],
-  transports: {
-    [polygon.id]: http("https://polygon-rpc.com", {
-      retryCount: 3,
-      retryDelay: 1000,
-    }),
-  },
+/**
+ * Contract Addresses
+ * These addresses can be updated in the .env file
+ * The ABI structure should remain constant
+ */
+export const POLKING_ADDRESS = process.env.NEXT_PUBLIC_POLKING_ADDRESS || ""
+export const POLYGON_CHAIN_ID = 137 // Polygon Mainnet chain ID
+export const APP_NAME = "POLKING"
+
+// Export metadata separately for use in other files
+export const metadata = {
+  name: APP_NAME,
+  description: "Stake like a king. Rise through the ranks. Reign with rewards.",
+  url: "https://polking.io",
+  icons: ["https://polking.io/images/polking-logo.png"],
+}
+
+/**
+ * Wagmi Adapter Configuration
+ * Handles wallet connection and network setup
+ */
+export const wagmiAdapter = new WagmiAdapter({
+  storage: createStorage({
+    storage: cookieStorage
+  }),
+  ssr: true,
+  projectId,
+  networks: [polygon]
 })
 
-// Export contract config with proper types
+export const config = wagmiAdapter.wagmiConfig
+
+/**
+ * Contract Configuration
+ * Type-safe contract configuration for read operations
+ */
 export const contractConfig = {
-  address: POLKING_ADDRESS,
+  address: POLKING_ADDRESS as `0x${string}`,
   abi: POLKING.abi,
 } as const
 
-// Export contract write config
+/**
+ * Contract Write Configuration
+ * Type-safe contract configuration for write operations
+ */
 export const contractWriteConfig = {
   ...contractConfig,
   functionName: "stake",
@@ -119,13 +80,20 @@ export const contractWriteConfig = {
 export type ContractConfig = typeof contractConfig
 export type ContractWriteConfig = typeof contractWriteConfig
 
-// Initialize wagmi client
+/**
+ * Initialize wagmi client
+ * @returns {WagmiConfig} Configured wagmi client
+ */
 export const initializeWagmi = () => {
   return config
 }
 
-// Utility function to get staking plan details with retry
-export async function getStakingPlan(amount: number) {
+/**
+ * Get staking plan details with retry mechanism
+ * @param {number} amount - Amount to stake
+ * @returns {Promise<number | null>} Plan number or null if failed
+ */
+export async function getStakingPlan(amount: number): Promise<number | null> {
   if (!amount) return null
   
   let retries = 3
@@ -133,7 +101,7 @@ export async function getStakingPlan(amount: number) {
     try {
       const plan = await readContract(config, {
         abi: POLKING.abi,
-        address: POLKING_ADDRESS,
+        address: POLKING_ADDRESS as `0x${string}`,
         functionName: "getPlan",
         args: [parseEther(amount.toString())],
       })
@@ -151,22 +119,25 @@ export async function getStakingPlan(amount: number) {
   return null
 }
 
-// Get plan details (rate and duration)
-export async function getPlanRate(plan: number) {
+/**
+ * Get plan rate and duration
+ * @param {number} plan - Plan number
+ * @returns {Promise<{roiBps: number, durationDays: number}>} Plan details
+ */
+export async function getPlanRate(plan: number): Promise<{ roiBps: number; durationDays: number }> {
   try {
     const result = await readContract(config, {
       abi: POLKING.abi,
-      address: POLKING_ADDRESS,
+      address: POLKING_ADDRESS as `0x${string}`,
       functionName: "getRate",
       args: [plan],
     })
     
-    // Type the result as we know the ABI structure
     const typedResult = result as [bigint, bigint]
     
     return {
-      roiBps: Number(typedResult[0]), // ROI in basis points
-      durationDays: Number(typedResult[1]), // Duration in days
+      roiBps: Number(typedResult[0]),
+      durationDays: Number(typedResult[1]),
     }
   } catch (error) {
     logger.error("Error getting plan rate:", error)
@@ -174,12 +145,16 @@ export async function getPlanRate(plan: number) {
   }
 }
 
-// Get user's staking balance
-export async function getUserStakingAmount(address: Address) {
+/**
+ * Get user's staking balance
+ * @param {Address} address - User's wallet address
+ * @returns {Promise<number>} Staked amount
+ */
+export async function getUserStakingAmount(address: Address): Promise<number> {
   try {
     const amount = await readContract(config, {
       abi: POLKING.abi,
-      address: POLKING_ADDRESS,
+      address: POLKING_ADDRESS as `0x${string}`,
       functionName: "getStakeAmount",
       args: [address],
     })
@@ -191,12 +166,17 @@ export async function getUserStakingAmount(address: Address) {
   }
 }
 
-// Stake POL tokens with a referrer
-export async function stakePOL(amount: number, referrer: Address) {
+/**
+ * Stake POL tokens with a referrer
+ * @param {number} amount - Amount to stake
+ * @param {Address} referrer - Referrer's address
+ * @returns {Promise<`0x${string}`>} Transaction hash
+ */
+export async function stakePOL(amount: number, referrer: Address): Promise<`0x${string}`> {
   try {
     const tx = await writeContract(config, {
       abi: POLKING.abi,
-      address: POLKING_ADDRESS,
+      address: POLKING_ADDRESS as `0x${string}`,
       functionName: "stake",
       args: [referrer],
       value: parseEther(amount.toString()),
@@ -209,12 +189,16 @@ export async function stakePOL(amount: number, referrer: Address) {
   }
 }
 
-// Get active stakes count
-export async function getActiveStakesCount(address: Address) {
+/**
+ * Get active stakes count
+ * @param {Address} address - User's wallet address
+ * @returns {Promise<number>} Number of active stakes
+ */
+export async function getActiveStakesCount(address: Address): Promise<number> {
   try {
     const count = await readContract(config, {
       abi: POLKING.abi,
-      address: POLKING_ADDRESS,
+      address: POLKING_ADDRESS as `0x${string}`,
       functionName: "activeStakesCount",
       args: [address],
     })
@@ -226,12 +210,15 @@ export async function getActiveStakesCount(address: Address) {
   }
 }
 
-// Claim rewards
-export async function claimRewards() {
+/**
+ * Claim rewards
+ * @returns {Promise<`0x${string}`>} Transaction hash
+ */
+export async function claimRewards(): Promise<`0x${string}`> {
   try {
     const tx = await writeContract(config, {
       abi: POLKING.abi,
-      address: POLKING_ADDRESS,
+      address: POLKING_ADDRESS as `0x${string}`,
       functionName: "claim",
     })
     
@@ -242,17 +229,20 @@ export async function claimRewards() {
   }
 }
 
-// Get rewards data
-export async function getRewardsData(address: Address) {
+/**
+ * Get rewards data
+ * @param {Address} address - User's wallet address
+ * @returns {Promise<{totalUnclaimed: number, rewardsPerSecond: number}>} Rewards data
+ */
+export async function getRewardsData(address: Address): Promise<{ totalUnclaimed: number; rewardsPerSecond: number }> {
   try {
     const data = await readContract(config, {
       abi: POLKING.abi,
-      address: POLKING_ADDRESS,
+      address: POLKING_ADDRESS as `0x${string}`,
       functionName: "getLiveRewardsData",
       args: [address],
     })
     
-    // Type the result as we know the ABI structure
     const typedData = data as [bigint, bigint]
     
     return {
@@ -262,6 +252,32 @@ export async function getRewardsData(address: Address) {
   } catch (error) {
     logger.error("Error getting rewards data:", error)
     return { totalUnclaimed: 0, rewardsPerSecond: 0 }
+  }
+}
+
+/**
+ * Get affiliate/downline info for a user
+ * @param {Address} address - User's wallet address
+ * @param {number} maxDepth - Maximum depth to fetch
+ * @returns {Promise<{user: string, volume: number, activeStakeCount: number}[]>}
+ */
+export async function getDownlineBatchInfo(address: Address, maxDepth: number = 1): Promise<{user: string, volume: number, activeStakeCount: number}[]> {
+  try {
+    const data = await readContract(config, {
+      abi: POLKING.abi,
+      address: POLKING_ADDRESS as `0x${string}`,
+      functionName: "getDownlineBatchInfo",
+      args: [address, maxDepth],
+    })
+    // data is array of { user, volume, activeStakeCount }
+    return (data as any[]).map((item) => ({
+      user: item.user,
+      volume: Number(item.volume),
+      activeStakeCount: Number(item.activeStakeCount),
+    }))
+  } catch (error) {
+    logger.error("Error getting downline batch info:", error)
+    return []
   }
 }
 

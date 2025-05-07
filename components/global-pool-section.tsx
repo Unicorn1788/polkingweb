@@ -7,13 +7,8 @@ import { POLKING_ADDRESS } from "@/lib/wagmi-config"
 import { formatEther, type Address } from "viem"
 import POLKING_ABI from "@/app/contracts/POLKING.json"
 
-// Define return type for getRankCounts
-type RankCounts = {
-  soldiers: bigint
-  knights: bigint
-  dukes: bigint
-  kings: bigint
-}
+// Convert address to proper type
+const contractAddress = POLKING_ADDRESS as `0x${string}`
 
 export default function GlobalPoolSection() {
   const [showBreakdown, setShowBreakdown] = useState(false)
@@ -24,19 +19,41 @@ export default function GlobalPoolSection() {
     seconds: 0
   })
 
-  // Get total rank pools amount
-  const { data: totalRankPools } = useContractRead({
-    address: POLKING_ADDRESS,
-    abi: POLKING_ABI,
-    functionName: 'getTotalRankPools',
-  }) as { data: bigint | undefined }
-
   // Get rank counts
   const { data: rankCounts } = useContractRead({
-    address: POLKING_ADDRESS,
-    abi: POLKING_ABI,
+    address: contractAddress,
+    abi: POLKING_ABI.abi,
     functionName: 'getRankCounts',
-  }) as { data: RankCounts | undefined }
+  }) as { data: { soldiers: bigint, knights: bigint, dukes: bigint, kings: bigint } | undefined }
+
+  // Get each pool value
+  const { data: soldierPool } = useContractRead({
+    address: contractAddress,
+    abi: POLKING_ABI.abi,
+    functionName: 'soldierPoolx',
+  }) as { data: bigint | undefined }
+  const { data: knightPool } = useContractRead({
+    address: contractAddress,
+    abi: POLKING_ABI.abi,
+    functionName: 'knightPoolx',
+  }) as { data: bigint | undefined }
+  const { data: dukePool } = useContractRead({
+    address: contractAddress,
+    abi: POLKING_ABI.abi,
+    functionName: 'dukePoolx',
+  }) as { data: bigint | undefined }
+  const { data: kingPool } = useContractRead({
+    address: contractAddress,
+    abi: POLKING_ABI.abi,
+    functionName: 'kingPoolx',
+  }) as { data: bigint | undefined }
+
+  // Calculate total global pool
+  const totalRankPools =
+    (soldierPool || BigInt(0)) +
+    (knightPool || BigInt(0)) +
+    (dukePool || BigInt(0)) +
+    (kingPool || BigInt(0))
 
   // Format number with spaces
   const formatNumber = (num: bigint | number | null | undefined) => {
@@ -44,11 +61,51 @@ export default function GlobalPoolSection() {
     return formatEther(BigInt(num.toString())).replace(/\B(?=(\d{3})+(?!\d))/g, " ")
   }
 
-  // Calculate pool amounts based on percentages
-  const calculatePoolAmount = (percentage: number) => {
-    if (!totalRankPools) return "0"
-    const amount = (totalRankPools * BigInt(percentage)) / BigInt(100)
-    return formatNumber(amount)
+  // Calculate pool amounts based on actual pool values
+  const poolData = {
+    totalAmount: formatNumber(totalRankPools),
+    distribution: [
+      {
+        rank: "Soldier",
+        percentage: 0, // not used, but kept for UI
+        description: "Share among Soldier NFT holders",
+        color: "from-[#a58af8] to-[#facc15]",
+        borderColor: "border-[#a58af8]/30",
+        iconColor: "text-[#a58af8]",
+        holders: rankCounts ? Number(rankCounts.soldiers) : 0,
+        poolAmount: formatNumber(soldierPool),
+      },
+      {
+        rank: "Knight",
+        percentage: 0,
+        description: "Share among Knight NFT holders",
+        color: "from-[#a58af8] to-[#facc15]",
+        borderColor: "border-[#a58af8]/30",
+        iconColor: "text-[#a58af8]",
+        holders: rankCounts ? Number(rankCounts.knights) : 0,
+        poolAmount: formatNumber(knightPool),
+      },
+      {
+        rank: "Duke",
+        percentage: 0,
+        description: "Share among Duke NFT holders",
+        color: "from-[#a58af8] to-[#facc15]",
+        borderColor: "border-[#a58af8]/30",
+        iconColor: "text-[#a58af8]",
+        holders: rankCounts ? Number(rankCounts.dukes) : 0,
+        poolAmount: formatNumber(dukePool),
+      },
+      {
+        rank: "King",
+        percentage: 0,
+        description: "Share among King NFT holders",
+        color: "from-[#a58af8] to-[#facc15]",
+        borderColor: "border-[#a58af8]/30",
+        iconColor: "text-[#a58af8]",
+        holders: rankCounts ? Number(rankCounts.kings) : 0,
+        poolAmount: formatNumber(kingPool),
+      },
+    ],
   }
 
   useEffect(() => {
@@ -82,53 +139,6 @@ export default function GlobalPoolSection() {
 
     return () => clearInterval(timer)
   }, [])
-
-  // Updated pool data with the four rank tiers
-  const poolData = {
-    totalAmount: formatNumber(totalRankPools),
-    distribution: [
-      {
-        rank: "Soldier",
-        percentage: 10,
-        description: "Share among Soldier NFT holders",
-        color: "from-[#a58af8] to-[#facc15]",
-        borderColor: "border-[#a58af8]/30",
-        iconColor: "text-[#a58af8]",
-        holders: rankCounts ? Number(rankCounts.soldiers) : 0,
-        poolAmount: calculatePoolAmount(10)
-      },
-      {
-        rank: "Knight",
-        percentage: 20,
-        description: "Share among Knight NFT holders",
-        color: "from-[#a58af8] to-[#facc15]",
-        borderColor: "border-[#a58af8]/30",
-        iconColor: "text-[#a58af8]",
-        holders: rankCounts ? Number(rankCounts.knights) : 0,
-        poolAmount: calculatePoolAmount(20)
-      },
-      {
-        rank: "Duke",
-        percentage: 30,
-        description: "Share among Duke NFT holders",
-        color: "from-[#a58af8] to-[#facc15]",
-        borderColor: "border-[#a58af8]/30",
-        iconColor: "text-[#a58af8]",
-        holders: rankCounts ? Number(rankCounts.dukes) : 0,
-        poolAmount: calculatePoolAmount(30)
-      },
-      {
-        rank: "King",
-        percentage: 40,
-        description: "Share among King NFT holders",
-        color: "from-[#a58af8] to-[#facc15]",
-        borderColor: "border-[#a58af8]/30",
-        iconColor: "text-[#a58af8]",
-        holders: rankCounts ? Number(rankCounts.kings) : 0,
-        poolAmount: calculatePoolAmount(40)
-      },
-    ],
-  }
 
   return (
     <section className="relative py-20 overflow-hidden">

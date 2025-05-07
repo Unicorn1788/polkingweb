@@ -2,85 +2,75 @@
 import { useState, useRef, useEffect } from "react"
 import { Copy, QrCode, User, CreditCard, TrendingUp, ChevronDown, ChevronUp, Link, X } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useWallet } from "@/context/wallet-context"
 import { QRCodeSVG } from "qrcode.react"
-import { useReadContract } from "wagmi"
-import { POLKING_ADDRESS, contractConfig } from "@/lib/wagmi-config"
-import { formatEther } from "viem"
-import POLKING_ABI from "@/app/contracts/POLKING.json"
-
-// Interface for affiliate data from contract
-interface DownlineInfo {
-  user: string // address
-  volume: bigint
-  activeStakeCount: bigint
-}
+import { useAppKit, useAppKitAccount } from '@reown/appkit/react'
+import { getDownlineBatchInfo } from "@/lib/wagmi-config"
 
 const AffiliateSection = () => {
-  // Use wallet address, isConnected is still useful but not for conditional rendering of the whole section
-  const { address, isConnected } = useWallet()
+  const { address } = useAppKitAccount()
   const [copySuccess, setCopySuccess] = useState(false)
-  const [showQR, setShowQR] = useState(false) // This state might become less relevant with the modal
   const [expandedCards, setExpandedCards] = useState<Record<number, boolean>>({})
   const [isListExpanded, setIsListExpanded] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
-  // referrerAddress state is not used in the provided code, can be removed if not needed elsewhere
-  // const [referrerAddress, setReferrerAddress] = useState<string | null>(null)
   const [isQRModalOpen, setIsQRModalOpen] = useState(false)
 
-  // Get downline batch info from contract
-  const { data: downlineData } = useReadContract({
-    ...contractConfig,
-    functionName: 'getDownlineBatchInfo',
-    args: [address || "0x0000000000000000000000000000000000000000", 10] as const,
-  })
+  // Real affiliate data
+  const [affiliates, setAffiliates] = useState<{user: string, activeStakeCount: number, volume: number}[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!address) return
+    setLoading(true)
+    setError(null)
+    getDownlineBatchInfo(address as `0x${string}`, 1)
+      .then((data) => setAffiliates(data))
+      .catch((err) => setError("Failed to load affiliates"))
+      .finally(() => setLoading(false))
+  }, [address])
 
   // Format number with spaces instead of commas
   const formatNumber = (num: number) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")
   }
 
-  // Generate referral link - this will be an empty string if address is null/undefined
-  const referralLink = address ? `${window.location.origin}?ref=${address}` : ""
+  // Generate referral link using actual wallet address
+  const referralLink = `${typeof window !== "undefined" ? window.location.origin : ""}/ref=${address || "0x..."}`
 
   const handleCopy = () => {
-    // Only attempt to copy if a referralLink exists (wallet is connected)
-    if (referralLink) {
-      // Use the Clipboard API if available
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(referralLink)
-          .then(() => {
-            setCopySuccess(true);
-            setTimeout(() => setCopySuccess(false), 2000);
-          })
-          .catch(err => console.error('Failed to copy: ', err));
-      } else {
-        // Fallback for older browsers
-        const textArea = document.createElement("textarea");
-        textArea.value = referralLink;
-        textArea.style.position = "fixed";  // Avoid scrolling to bottom
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-          document.execCommand('copy');
-          setCopySuccess(true);
-          setTimeout(() => setCopySuccess(false), 2000);
-        } catch (err) {
-          console.error('Fallback: Oops, unable to copy', err);
-        }
-        document.body.removeChild(textArea);
+    // Use the Clipboard API if available
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard
+        .writeText(referralLink)
+        .then(() => {
+          setCopySuccess(true)
+          setTimeout(() => setCopySuccess(false), 2000)
+        })
+        .catch((err) => console.error("Failed to copy: ", err))
+    } else {
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea")
+      textArea.value = referralLink
+      textArea.style.position = "fixed" // Avoid scrolling to bottom
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      try {
+        document.execCommand("copy")
+        setCopySuccess(true)
+        setTimeout(() => setCopySuccess(false), 2000)
+      } catch (err) {
+        console.error("Fallback: Oops, unable to copy", err)
       }
+      document.body.removeChild(textArea)
     }
   }
-
-  // Removed handleQRCode as it's replaced by the modal state setIsQRModalOpen
 
   // Toggle card expansion
   const toggleCard = (index: number) => {
     setExpandedCards((prev) => ({
       ...prev,
-      [index]: !prev[index]
+      [index]: !prev[index],
     }))
   }
 
@@ -90,17 +80,9 @@ const AffiliateSection = () => {
       // Use requestAnimationFrame for potentially smoother scroll after rendering
       requestAnimationFrame(() => {
         listRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
-      });
+      })
     }
   }, [isListExpanded])
-
-  // Close QR modal if wallet disconnects (optional but good practice)
-  useEffect(() => {
-    if (!address && isQRModalOpen) {
-      setIsQRModalOpen(false);
-    }
-  }, [address, isQRModalOpen]);
-
 
   return (
     <section className="relative py-16 sm:py-20 bg-gradient-to-br from-[#0a0118] to-[#0e0424] text-white px-4 sm:px-6 md:px-8">
@@ -145,7 +127,7 @@ const AffiliateSection = () => {
             />
           </h2>
           <p className="text-white/70 max-w-2xl mx-auto text-sm">
-            Invite your network and earn a royal stream of POL tokens from your affiliates.
+            Invite your network and earn a royal stream of tokens from your affiliates.
           </p>
         </motion.div>
 
@@ -156,7 +138,6 @@ const AffiliateSection = () => {
           transition={{ duration: 0.6 }}
           className="rounded-2xl p-5 sm:p-6 backdrop-blur-xl bg-gradient-to-br from-black/80 via-[#0f0c1a]/80 to-[#0b0514]/80 border border-[#a58af8] shadow-[0_0_40px_rgba(165,138,248,0.4)] mb-6"
         >
-          {/* Removed the !isConnected conditional rendering here */}
           <p className="text-sm text-white/80 mb-3 font-medium">Your Referral Link</p>
 
           <div className="flex flex-col sm:flex-row items-stretch gap-3">
@@ -165,37 +146,29 @@ const AffiliateSection = () => {
                 <Link size={16} />
               </div>
               <input
-                readOnly // Always readOnly
-                // Display referralLink if address exists, otherwise show a message
-                value={address ? referralLink : "Connect wallet to generate your link"}
-                className={`w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#0f0c1a]/70 border border-[#a58af8]/30 text-sm focus:outline-none focus:ring-2 focus:ring-[#a58af8]/50 transition-all
-                          ${address ? 'text-white' : 'text-white/60 italic'}`} // Add styling for unconnected state
+                readOnly
+                value={referralLink}
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#0f0c1a]/70 border border-[#a58af8]/30 text-sm focus:outline-none focus:ring-2 focus:ring-[#a58af8]/50 transition-all text-white"
               />
             </div>
 
             <div className="flex gap-3 sm:w-auto">
               <button
                 onClick={handleCopy}
-                disabled={!address} // Disable if wallet is not connected
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs bg-[#0f0c1a]/70 rounded-xl hover:bg-[#facc15]/10 hover:border-[#facc15]/50 hover:shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all duration-300 relative group
-                          ${address ? 'text-[#facc15] border border-[#facc15]/30' : 'text-white/50 border border-[#a58af8]/20 cursor-not-allowed'}`} // Styling for disabled state
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs bg-[#0f0c1a]/70 rounded-xl hover:bg-[#facc15]/10 hover:border-[#facc15]/50 hover:shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all duration-300 relative group text-[#facc15] border border-[#facc15]/30"
               >
                 <Copy size={14} />
                 <span>{copySuccess ? "Copied!" : "Copy"}</span>
-                {/* Only show hover effect when enabled */}
-                {address && <span className="absolute inset-0 rounded-xl bg-[#facc15]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>}
+                <span className="absolute inset-0 rounded-xl bg-[#facc15]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </button>
 
               <button
-                onClick={() => address && setIsQRModalOpen(true)} // Only open modal if wallet is connected
-                disabled={!address} // Disable if wallet is not connected
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs bg-[#0f0c1a]/70 rounded-xl hover:bg-[#a58af8]/10 hover:border-[#a58af8]/50 hover:shadow-[0_0_15px_rgba(165,138,248,0.3)] transition-all duration-300 relative group
-                          ${address ? 'text-[#a58af8] border border-[#a58af8]/30' : 'text-white/50 border border-[#a58af8]/20 cursor-not-allowed'}`} // Styling for disabled state
+                onClick={() => setIsQRModalOpen(true)}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs bg-[#0f0c1a]/70 rounded-xl hover:bg-[#a58af8]/10 hover:border-[#a58af8]/50 hover:shadow-[0_0_15px_rgba(165,138,248,0.3)] transition-all duration-300 relative group text-[#a58af8] border border-[#a58af8]/30"
               >
                 <QrCode size={14} />
                 <span>QR Code</span>
-                 {/* Only show hover effect when enabled */}
-                {address && <span className="absolute inset-0 rounded-xl bg-[#a58af8]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>}
+                <span className="absolute inset-0 rounded-xl bg-[#a58af8]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
               </button>
             </div>
           </div>
@@ -215,7 +188,7 @@ const AffiliateSection = () => {
             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
               <User size={18} className="text-[#a58af8]" />
               Your Affiliate List
-              {downlineData && `(${(downlineData as DownlineInfo[]).length})`}
+              {loading ? "(Loading...)" : affiliates && `(${affiliates.length})`}
             </h3>
             <div className="w-6 h-6 rounded-full bg-[#0f0c1a]/70 border border-[#a58af8]/30 flex items-center justify-center transition-transform duration-300 group-hover:border-[#a58af8]/60">
               {isListExpanded ? (
@@ -237,14 +210,12 @@ const AffiliateSection = () => {
                 className="overflow-hidden"
               >
                 <div className="p-5 sm:p-6 pt-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {!address && <p className="col-span-full text-center text-white/60 text-sm">Connect your wallet to see your actual affiliate list.</p>}
-                  {address && (!downlineData || (downlineData as DownlineInfo[]).length === 0) && (
-                    <p className="col-span-full text-center text-white/60 text-sm">No affiliates found yet.</p>
-                  )}
-
-                  {address && downlineData && (downlineData as DownlineInfo[]).map((affiliate, index) => (
+                  {loading && <div className="col-span-full text-center text-white/70">Loading affiliates...</div>}
+                  {error && <div className="col-span-full text-center text-red-400">{error}</div>}
+                  {!loading && !error && affiliates.length === 0 && <div className="col-span-full text-center text-white/70">No affiliates found.</div>}
+                  {affiliates.map((affiliate, index) => (
                     <div
-                      key={affiliate.user}
+                      key={index}
                       className="rounded-xl bg-[#0f0c1a]/70 border border-[#a58af8]/30 hover:border-[#a58af8]/50 transition-all duration-300 hover:shadow-[0_0_20px_rgba(165,138,248,0.2)] overflow-hidden"
                     >
                       <div
@@ -281,9 +252,7 @@ const AffiliateSection = () => {
                                   <CreditCard className="text-[#a58af8] w-3 h-3" />
                                   <p className="text-white/70 text-xs">Active Stakes</p>
                                 </div>
-                                <p className="text-xs font-bold text-white">
-                                  {Number(affiliate.activeStakeCount)}
-                                </p>
+                                <p className="text-xs font-bold text-white">{affiliate.activeStakeCount}</p>
                               </div>
 
                               <div className="bg-[#0f0c1a]/50 rounded-lg p-2 text-center">
@@ -291,9 +260,7 @@ const AffiliateSection = () => {
                                   <TrendingUp className="text-[#a58af8] w-3 h-3" />
                                   <p className="text-white/70 text-xs">Total Volume</p>
                                 </div>
-                                <p className="text-xs font-bold text-[#facc15]">
-                                  {formatEther(affiliate.volume)} POL
-                                </p>
+                                <p className="text-xs font-bold text-[#facc15]">{formatNumber(affiliate.volume)} POL</p>
                               </div>
                             </div>
                           </motion.div>
@@ -310,8 +277,7 @@ const AffiliateSection = () => {
 
       {/* Custom QR Code Modal */}
       <AnimatePresence>
-        {/* Only render modal if it's open AND address exists */}
-        {isQRModalOpen && address && (
+        {isQRModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -335,31 +301,14 @@ const AffiliateSection = () => {
               {/* Modal content */}
               <div className="text-center">
                 <h3 className="text-xl font-semibold mb-4 text-white">Your Referral Link</h3>
-                 {/* Render QR code only if referralLink is available */}
-                 {referralLink ? (
-                   <div className="bg-white p-4 rounded-xl mb-4 inline-block">
-                     <QRCodeSVG
-                       value={referralLink}
-                       size={200}
-                       level="H"
-                       includeMargin={false}
-                       className="rounded-lg"
-                     />
-                   </div>
-                 ) : (
-                    // Show a message if no referral link (shouldn't happen if modal only opens when address exists)
-                    <p className="text-sm text-white/70 mb-4">Connect wallet to generate QR Code.</p>
-                 )}
+                <div className="bg-white p-4 rounded-xl mb-4 inline-block">
+                  <QRCodeSVG value={referralLink} size={200} level="H" includeMargin={false} className="rounded-lg" />
+                </div>
 
-                <p className="text-sm text-white/70 mb-4 break-all">
-                   {/* Display referralLink if available, otherwise a message */}
-                  {address ? referralLink : "Connect wallet to see the link."}
-                </p>
+                <p className="text-sm text-white/70 mb-4 break-all">{referralLink}</p>
                 <button
                   onClick={handleCopy}
-                   disabled={!address} // Disable button in modal too if no address
-                  className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm bg-[#0f0c1a]/70 rounded-xl hover:bg-[#facc15]/10 hover:border-[#facc15]/50 hover:shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all duration-300
-                            ${address ? 'text-[#facc15] border border-[#facc15]/30' : 'text-white/50 border border-[#a58af8]/20 cursor-not-allowed'}`} // Styling for disabled state
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm bg-[#0f0c1a]/70 rounded-xl hover:bg-[#facc15]/10 hover:border-[#facc15]/50 hover:shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all duration-300 text-[#facc15] border border-[#facc15]/30"
                 >
                   <Copy size={16} />
                   <span>{copySuccess ? "Copied!" : "Copy Link"}</span>

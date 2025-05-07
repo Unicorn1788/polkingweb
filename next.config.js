@@ -28,21 +28,9 @@ const nextConfig = {
     parallelServerCompiles: true,
   },
   // Simplified webpack config
-  webpack: (config, { isServer }) => {
-    // Add all node_modules to externals for server
-    if (isServer) {
-      const nodeModules = ["pino-pretty", "encoding"]
-      config.externals = [
-        ...(Array.isArray(config.externals) ? config.externals : []),
-        (context, request, callback) => {
-          if (nodeModules.includes(request) || /^pino-/.test(request)) {
-            return callback(null, "commonjs " + request)
-          }
-          callback()
-        },
-      ]
-    }
-    return config
+  webpack: (config) => {
+    config.externals.push("pino-pretty", "lokijs", "encoding");
+    return config;
   },
 }
 

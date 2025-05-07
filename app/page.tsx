@@ -1,5 +1,6 @@
 "use client"
 
+import Navbar from "@/components/navbar"
 import HeroSection from "@/components/hero-section"
 import NFTBoosterSection from "@/components/nft-booster-section"
 import AffiliateSection from "@/components/affiliate-section"
@@ -9,6 +10,7 @@ import FAQSection from "@/components/faq-section"
 import RewardsOverview from "@/components/rewards-overview"
 import StakeSection from "@/components/stake-section"
 import FlagCounterSection from "@/components/flag-counter"
+import FooterSection from "@/components/footer-section"
 import { useEffect, useState } from "react"
 
 export default function HomePage() {
@@ -31,6 +33,11 @@ export default function HomePage() {
 
   return (
     <main className="bg-[#0a0118]">
+        {/* Navbar Section */}
+        <section id="navbar-section">
+          <Navbar />
+        </section>
+
         {/* Hero Section */}
       <section id="hero-section">
           <HeroSection />
@@ -70,6 +77,11 @@ export default function HomePage() {
       {/* FAQ Section */}
       <section id="faq-section">
         <FAQSection />
+      </section>
+
+      {/* Footer Section */}
+      <section id="footer-section">
+        <FooterSection />
       </section>
     </main>
   )

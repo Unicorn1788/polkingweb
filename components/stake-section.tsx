@@ -4,7 +4,6 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { Clock, TrendingUp, Users, Shield, Wallet, ChevronDown, ChevronUp, User } from "lucide-react"
 import { useAccount, useBalance, useWriteContract, useTransaction, useReadContract, usePublicClient } from "wagmi"
-import { readContract } from "viem/actions"
 import { parseEther, formatEther } from "viem"
 import { Address } from "viem"
 import { POLKING_ADDRESS } from "@/lib/wagmi-config"
@@ -12,6 +11,12 @@ import { useToast } from "@/context/toast-context"
 import POLKING_ABI from "@/app/contracts/POLKING.json"
 import type { UseWriteContractReturnType } from "wagmi"
 import { useStakingQuery } from '@/hooks/use-staking-query'
+
+// Import from AppKit - make sure to use the correct path
+import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react'
+
+// Convert address to proper type
+const contractAddress = POLKING_ADDRESS as `0x${string}`
 
 // Define ABI for the specific functions we're using
 const stakingAbi = [
@@ -66,13 +71,17 @@ interface StakeInfo {
 }
 
 const StakeSection = () => {
-  const { address, isConnected } = useAccount()
+  // Use AppKit hooks instead of just wagmi
+  const { open } = useAppKit()
+  const { address, isConnected } = useAppKitAccount()
+  const { chainId, switchNetwork } = useAppKitNetwork()
+  
   const { showToast } = useToast()
   const publicClient = usePublicClient()
   
   // Get native MATIC balance
   const { data: maticBalance } = useBalance({
-    address,
+    address: address as `0x${string}` | undefined,
   })
 
   const [amount, setAmount] = useState<number>(0)
@@ -95,10 +104,10 @@ const StakeSection = () => {
 
   // Read active stakes count
   const { data: activeStakesCount } = useReadContract({
-    address: POLKING_ADDRESS,
+    address: contractAddress,
     abi: stakingAbi,
     functionName: "activeStakesCount",
-    args: isConnected && address ? [address] : undefined,
+    args: isConnected && address ? [address as `0x${string}`] : undefined,
   })
 
   // Read all active stakes
@@ -119,10 +128,10 @@ const StakeSection = () => {
         const stakeIds = await Promise.all(
           Array.from({ length: count }, (_, i) => 
             publicClient.readContract({
-              address: POLKING_ADDRESS,
+              address: contractAddress,
               abi: stakingAbi,
               functionName: "activeStakes",
-              args: [address, BigInt(i)],
+              args: [address as `0x${string}`, BigInt(i)],
             })
           )
         );
@@ -131,10 +140,10 @@ const StakeSection = () => {
         const stakeDetails = await Promise.all(
           stakeIds.map(stakeId =>
             publicClient.readContract({
-              address: POLKING_ADDRESS,
+              address: contractAddress,
               abi: stakingAbi,
               functionName: "stakes",
-              args: [address, stakeId],
+              args: [address as `0x${string}`, stakeId],
             })
           )
         );
@@ -265,8 +274,12 @@ const StakeSection = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\s/g, "").replace(/\./g, "")
     const value = Number.parseInt(raw)
-    if (value > 100000) return
-    setAmount(isNaN(value) ? 0 : value)
+    if (!isNaN(value) && value <= 100000) {
+      setAmount(value)
+      console.log("Setting amount to:", value) // Debug log
+    } else if (raw === "") {
+      setAmount(0)
+    }
   }
 
   const handleMaxClick = () => {
@@ -281,16 +294,13 @@ const StakeSection = () => {
     rewardsData,
     stake,
     isStaking: useStakingQueryIsStaking,
-  } = useStakingQuery(address)
+  } = useStakingQuery(address as `0x${string}` | undefined)
 
   // Update stake function
   const handleStake = async () => {
     if (!isConnected) {
-      showToast({
-        type: "error",
-        title: "Wallet Not Connected",
-        message: "Please connect your wallet to stake"
-      })
+      // Use AppKit's open function to open the modal
+      open()
       return
     }
     
@@ -314,7 +324,26 @@ const StakeSection = () => {
     
     try {
       setIsStaking(true)
-      await stake(amount)
+      
+      // Determine which plan to use based on amount
+      const planNumber = amount >= planDetails.plan3.minAmount ? 2 : 
+                         amount >= planDetails.plan2.minAmount ? 1 : 0
+      
+      // Use writeContract directly if stake function from useStakingQuery has issues
+      if (typeof stake === 'function') {
+        console.log("Using stake function from useStakingQuery with amount:", amount)
+        await stake(amount)
+      } else {
+        console.log("Using writeContract directly with amount:", amount)
+        // Call the stake function directly from the contract
+        await writeContract({
+          address: contractAddress,
+          abi: POLKING_ABI.abi,
+          functionName: 'stake',
+          args: [BigInt(planNumber), parseEther(amount.toString()), referrerAddress]
+        })
+      }
+      
       setAmount(0)
     } catch (error) {
       console.error("Staking error:", error)
@@ -329,7 +358,7 @@ const StakeSection = () => {
   }
 
   // Update the button state
-  const isButtonDisabled = amount <= 0 || amount > balance || !isConnected || isStaking || isTransactionPending
+  const isButtonDisabled = isStaking || isTransactionPending
 
   // Update the button text
   const getButtonText = () => {
@@ -338,7 +367,7 @@ const StakeSection = () => {
     if (amount <= 0) return "Enter Amount"
     if (amount > balance) return "Insufficient Balance"
     if (!isConnected) return "Connect Wallet"
-    return "Stake Now"
+    return "Stake " + formatNumber(amount) + " POL"
   }
 
   // Get plan details based on plan number
@@ -609,6 +638,11 @@ const StakeSection = () => {
               )}
             </div>
           )}
+        </div>
+
+        {/* Add the AppKit button as a fallback */}
+        <div className="mt-6 text-center">
+          <appkit-button />
         </div>
       </div>
     </section>

@@ -1,5 +1,18 @@
+/**
+ * @file transaction.ts
+ * @description Transaction utilities for blockchain interactions
+ * 
+ * This file contains utilities for handling blockchain transactions,
+ * including URL generation for explorers and transaction status tracking.
+ * 
+ * IMPORTANT: When updating network configuration:
+ * 1. Update POLYGON_EXPLORER_URL if the network changes
+ * 2. Update any related network constants in wagmi-config.ts
+ */
+
 import type { Hash, TransactionReceipt } from "viem"
-import { POLYGON_EXPLORER_URL } from "@/lib/constants"
+
+const POLYGON_EXPLORER_URL = "https://polygonscan.com"
 
 export type TransactionStatus = "pending" | "success" | "error" | "cancelled"
 
@@ -81,5 +94,64 @@ export function parseTransactionError(error: any): string {
     return message.length > 100 ? `${message.substring(0, 100)}...` : message
   }
 
+  return "Unknown error occurred"
+}
+
+/**
+ * Get transaction URL for PolygonScan
+ * @param {string} hash - Transaction hash
+ * @returns {string} Full URL to transaction on PolygonScan
+ */
+export function getTransactionUrl(hash: string): string {
+  return `${POLYGON_EXPLORER_URL}/tx/${hash}`
+}
+
+/**
+ * Get address URL for PolygonScan
+ * @param {string} address - Wallet or contract address
+ * @returns {string} Full URL to address on PolygonScan
+ */
+export function getAddressUrl(address: string): string {
+  return `${POLYGON_EXPLORER_URL}/address/${address}`
+}
+
+/**
+ * Get token URL for PolygonScan
+ * @param {string} address - Token contract address
+ * @returns {string} Full URL to token on PolygonScan
+ */
+export function getTokenUrl(address: string): string {
+  return `${POLYGON_EXPLORER_URL}/token/${address}`
+}
+
+/**
+ * Get block URL for PolygonScan
+ * @param {number} blockNumber - Block number
+ * @returns {string} Full URL to block on PolygonScan
+ */
+export function getBlockUrl(blockNumber: number): string {
+  return `${POLYGON_EXPLORER_URL}/block/${blockNumber}`
+}
+
+/**
+ * Get transaction status from receipt
+ * @param {TransactionReceipt} receipt - Transaction receipt
+ * @returns {TransactionStatus} Status of the transaction
+ */
+export function getTransactionStatus(receipt: TransactionReceipt): TransactionStatus {
+  if (receipt.status === "success") return "success"
+  if (receipt.status === "reverted") return "error"
+  return "pending"
+}
+
+/**
+ * Get error message from transaction error
+ * @param {unknown} error - Transaction error
+ * @returns {string} Human-readable error message
+ */
+export function getTransactionErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
   return "Unknown error occurred"
 }

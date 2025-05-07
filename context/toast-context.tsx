@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useCallback } from "react"
+import { createContext, useContext, useCallback, useRef } from "react"
 import { Toaster, toast } from "sonner"
 import { logger } from "@/lib/logger"
 
@@ -13,6 +13,8 @@ interface ToastContextType {
 const ToastContext = createContext<ToastContextType | undefined>(undefined)
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const toastRef = useRef(toast)
+
   const showToast = useCallback(({ 
     type, 
     title, 
@@ -30,7 +32,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Show new toast based on type
-    toast[type](title, {
+    toastRef.current[type](title, {
       description: message,
       duration: duration,
       position: "top-right",
