@@ -7,10 +7,11 @@ import { useAccount, useBalance, useWriteContract, useTransaction, useReadContra
 import { readContract } from "viem/actions"
 import { parseEther, formatEther } from "viem"
 import { Address } from "viem"
-import { POLKING_ADDRESS } from "@/utils/contract-utils"
+import { POLKING_ADDRESS } from "@/lib/wagmi-config"
 import { useToast } from "@/context/toast-context"
 import POLKING_ABI from "@/app/contracts/POLKING.json"
 import type { UseWriteContractReturnType } from "wagmi"
+import { useStakingQuery } from '@/hooks/use-staking-query'
 
 // Define ABI for the specific functions we're using
 const stakingAbi = [
@@ -74,7 +75,7 @@ const StakeSection = () => {
     address,
   })
 
-  const [amount, setAmount] = useState(0)
+  const [amount, setAmount] = useState<number>(0)
   const [contractType, setContractType] = useState("plan1")
   const [isInputFocused, setIsInputFocused] = useState(false)
   const [balance, setBalance] = useState(0)
@@ -112,7 +113,6 @@ const StakeSection = () => {
       
       try {
         const count = Number(activeStakesCount);
-        console.log('Active stakes count:', count); // Debug log
         const stakes: StakeInfo[] = [];
         
         // Fetch all stake IDs first
@@ -127,8 +127,6 @@ const StakeSection = () => {
           )
         );
 
-        console.log('Stake IDs:', stakeIds); // Debug log
-
         // Fetch all stake details in parallel
         const stakeDetails = await Promise.all(
           stakeIds.map(stakeId =>
@@ -140,8 +138,6 @@ const StakeSection = () => {
             })
           )
         );
-
-        console.log('Stake details:', stakeDetails); // Debug log
 
         // Process all stakes
         stakeDetails.forEach((details, index) => {
@@ -173,7 +169,6 @@ const StakeSection = () => {
           }
         });
 
-        console.log('Processed stakes:', stakes); // Debug log
         setActiveStakes(stakes);
       } catch (error) {
         console.error("Error fetching stakes:", error);
@@ -202,7 +197,7 @@ const StakeSection = () => {
       setAmount(0)
       setTxHash(undefined)
     }
-  }, [isTransactionSuccess, amount])
+  }, [isTransactionSuccess, amount, showToast])
 
   // Detect referrer from URL
   useEffect(() => {
@@ -278,18 +273,41 @@ const StakeSection = () => {
     setAmount(balance) // Set to current balance
   }
 
-  const handleStakeNow = async () => {
-    if (!writeContract || amount <= 0 || amount > balance || !isConnected) return
+  const {
+    stakingPlan,
+    planRate,
+    stakingAmount,
+    activeStakesCount: stakingActiveStakesCount,
+    rewardsData,
+    stake,
+    isStaking: useStakingQueryIsStaking,
+  } = useStakingQuery(address)
+
+  // Update stake function
+  const handleStake = async () => {
+    const stakeAmount = stakingAmount ?? 0;
+    
+    if (stakeAmount <= 0 || stakeAmount > balance || !isConnected) {
+      showToast({
+        type: "error",
+        title: "Invalid Stake",
+        message: stakeAmount <= 0 
+          ? "Please enter an amount to stake" 
+          : "Insufficient balance for staking"
+      })
+      return
+    }
     
     try {
-      setIsStaking(true)
-      await writeContract({
-        abi: POLKING_ABI.abi,
-        address: POLKING_ADDRESS,
-        functionName: "stake",
-        args: [referrerAddress],
-        value: parseEther(amount.toString()),
+      await stake(stakeAmount)
+      
+      showToast({
+        type: "success",
+        title: "Staking Successful",
+        message: `Successfully staked ${stakeAmount} POL!`
       })
+      
+      setAmount(0)
     } catch (error) {
       console.error("Staking error:", error)
       showToast({
@@ -297,18 +315,16 @@ const StakeSection = () => {
         title: "Staking Failed",
         message: "There was an error while staking. Please try again."
       })
-    } finally {
-      setIsStaking(false)
     }
   }
 
   // Update the button state
-  const isButtonDisabled = !writeContract || amount <= 0 || amount > balance || !isConnected || isStaking || isTransactionPending
+  const isButtonDisabled = !writeContract || amount <= 0 || amount > balance || !isConnected || useStakingQueryIsStaking || isTransactionPending
 
   // Update the button text
   const getButtonText = () => {
     if (isTransactionPending) return "Transaction Pending..."
-    if (isStaking) return "Staking..."
+    if (useStakingQueryIsStaking) return "Staking..."
     if (amount <= 0) return "Enter Amount"
     if (amount > balance) return "Insufficient Balance"
     if (!isConnected) return "Connect Wallet"
@@ -470,14 +486,14 @@ const StakeSection = () => {
               <div className="flex items-center gap-1.5">
                 <Wallet className="w-3.5 h-3.5 text-[#a58af8]" />
                 <p className="text-xs text-white/60">
-                  Balance: {formatNumber(balance)} MATIC
+                  Balance: {formatNumber(balance)} POL
                 </p>
               </div>
             </div>
 
             {/* Stake Button */}
             <button
-              onClick={handleStakeNow}
+              onClick={handleStake}
               disabled={isButtonDisabled}
               className="w-full bg-gradient-to-r from-[#a58af8] to-[#facc15] text-black font-semibold py-3 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -495,9 +511,9 @@ const StakeSection = () => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-semibold text-white">Active Staking Contracts</h3>
-              {activeStakesCount ? (
+              {stakingActiveStakesCount ? (
                 <span className="bg-[#a58af8]/20 text-[#a58af8] text-xs font-medium px-2 py-1 rounded-full">
-                  {Number(activeStakesCount).toString()}
+                  {Number(stakingActiveStakesCount).toString()}
                 </span>
               ) : null}
             </div>
@@ -542,7 +558,7 @@ const StakeSection = () => {
                         <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                           <div>
                             <span className="text-white/60">Amount:</span>
-                            <span className="text-white ml-2">{formatNumber(Number(formatEther(stake.amount)))} MATIC</span>
+                            <span className="text-white ml-2">{formatNumber(Number(formatEther(stake.amount)))} POL</span>
                           </div>
                           <div>
                             <span className="text-white/60">Duration:</span>
@@ -550,11 +566,11 @@ const StakeSection = () => {
                           </div>
                           <div>
                             <span className="text-white/60">Claimed:</span>
-                            <span className="text-white ml-2">{formatNumber(Number(formatEther(stake.claimed)))} MATIC</span>
+                            <span className="text-white ml-2">{formatNumber(Number(formatEther(stake.claimed)))} POL</span>
                           </div>
                           <div>
                             <span className="text-white/60">Remaining:</span>
-                            <span className="text-white ml-2">{formatNumber(Number(formatEther(stake.remainingCap)))} MATIC</span>
+                            <span className="text-white ml-2">{formatNumber(Number(formatEther(stake.remainingCap)))} POL</span>
                           </div>
                         </div>
 
@@ -578,7 +594,7 @@ const StakeSection = () => {
               ) : (
                 <div className="bg-[#0f0c1a]/70 backdrop-blur-sm rounded-xl p-4 border border-[#a58af8]/20 text-center">
                   <p className="text-white/70">No active staking contracts yet</p>
-                  <p className="text-xs text-white/50 mt-1">Stake MATIC to earn rewards</p>
+                  <p className="text-xs text-white/50 mt-1">Stake POL to earn rewards</p>
                 </div>
               )}
             </div>

@@ -19,6 +19,7 @@ A modern staking platform with NFT rewards, referral system, and real-time track
 - TypeScript
 - Tailwind CSS
 - Framer Motion
+- Wagmi (Web3)
 - Jest & React Testing Library
 - ESLint & Prettier
 
@@ -35,9 +36,13 @@ cd polking
 pnpm install
 ```
 
-3. Create a `.env.local` file:
+3. Create a `.env.local` file with required environment variables:
 ```bash
-cp .env.example .env.local
+# WalletConnect
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
+
+# RPC URLs
+NEXT_PUBLIC_RPC_POLYGON=your_polygon_rpc_url
 ```
 
 4. Start the development server:
@@ -61,8 +66,14 @@ pnpm dev
 
 ```
 ├── app/                 # Next.js app directory
+│   ├── contracts/      # Smart contract interactions
+│   ├── globals.css     # Global styles
+│   ├── layout.tsx      # Root layout
+│   └── page.tsx        # Home page
 ├── components/         # React components
-├── constants/         # Shared constants
+│   ├── ui/            # UI components
+│   └── wallet/        # Wallet-related components
+├── context/           # React context providers
 ├── hooks/            # Custom React hooks
 ├── lib/              # Utility functions
 ├── public/           # Static assets
@@ -70,6 +81,23 @@ pnpm dev
 ├── types/            # TypeScript types
 └── utils/            # Helper functions
 ```
+
+## Wallet Integration
+
+The platform supports multiple wallet providers:
+- MetaMask
+- WalletConnect
+- TokenPocket
+- Phantom
+
+Key wallet features:
+- Multi-wallet support
+- Network switching (Polygon)
+- Error handling
+- Connection persistence
+- Address copying
+- Explorer links
+- Loading states
 
 ## Contributing
 
@@ -88,4 +116,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Next.js](https://nextjs.org/)
 - [Tailwind CSS](https://tailwindcss.com/)
 - [Framer Motion](https://www.framer.com/motion/)
+- [Wagmi](https://wagmi.sh/)
 - [Lucide Icons](https://lucide.dev/)

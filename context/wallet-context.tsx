@@ -3,12 +3,13 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
 import type { WalletErrorType } from "@/components/ui/wallet-error"
 import { useToast } from "./toast-context"
-import { useAccount, useDisconnect } from "wagmi"
+import { useAccount, useDisconnect, useConnect } from "wagmi"
 import { logError, parseWalletError, ErrorSeverity, type LoggedError } from "@/utils/error-logger"
+import { logger } from "@/lib/logger"
 
 // Define types
 type WalletError = {
-  type: WalletErrorType
+  type: 'connection' | 'disconnection' | 'network' | 'transaction'
   message: string
   errorId?: string
   details?: string
@@ -34,12 +35,14 @@ type WalletContextType = {
   togglePersistence: () => void
   recentErrors: LoggedError[]
   clearRecentErrors: () => void
+  lastConnectedWallet: string | null
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
 // Local storage keys
 const PERSISTENCE_ENABLED_KEY = "polking:wallet-persistence-enabled"
+const LAST_CONNECTED_WALLET_KEY = "polking:last-connected-wallet"
 const CONNECTION_ATTEMPTS_KEY = "polking:connection-attempts"
 const CONNECTION_SUCCESSES_KEY = "polking:connection-successes"
 
@@ -50,19 +53,34 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<WalletError | null>(null)
   const [isPersistenceEnabled, setIsPersistenceEnabled] = useState(false)
   const [recentErrors, setRecentErrors] = useState<LoggedError[]>([])
+  const [lastConnectedWallet, setLastConnectedWallet] = useState<string | null>(null)
   const { showToast } = useToast()
 
   // Wagmi hooks
   const { address, isConnected, isConnecting, chainId } = useAccount()
   const { disconnect: wagmiDisconnect, isPending: isDisconnecting } = useDisconnect()
+  const { connectors } = useConnect()
 
-  // Initialize persistence setting from localStorage
+  // Initialize persistence and last connected wallet from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       const persistenceEnabled = localStorage.getItem(PERSISTENCE_ENABLED_KEY) === "true"
+      const lastWallet = localStorage.getItem(LAST_CONNECTED_WALLET_KEY)
       setIsPersistenceEnabled(persistenceEnabled)
+      setLastConnectedWallet(lastWallet)
     }
   }, [])
+
+  // Save last connected wallet
+  useEffect(() => {
+    if (isConnected && typeof window !== "undefined") {
+      const currentWallet = connectors.find(c => c.ready)?.name || null
+      if (currentWallet) {
+        localStorage.setItem(LAST_CONNECTED_WALLET_KEY, currentWallet)
+        setLastConnectedWallet(currentWallet)
+      }
+    }
+  }, [isConnected, connectors])
 
   // Open wallet modal
   const openWalletModal = useCallback((callbackAction?: () => void) => {
@@ -89,8 +107,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       openWalletModal()
     } catch (err) {
       const parsedError = parseWalletError(err)
-      setError(parsedError)
-      logError(parsedError, ErrorSeverity.ERROR)
+      const walletError: WalletError = {
+        type: 'connection',
+        message: parsedError.message,
+        errorId: crypto.randomUUID(),
+      }
+      setError(walletError)
+      logger.error("Wallet connection error:", err)
     }
   }, [openWalletModal])
 
@@ -98,6 +121,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const disconnect = useCallback(async () => {
     try {
       await wagmiDisconnect()
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(LAST_CONNECTED_WALLET_KEY)
+      }
+      setLastConnectedWallet(null)
       showToast({
         type: "info",
         title: "Wallet Disconnected",
@@ -106,8 +133,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       })
     } catch (err) {
       const parsedError = parseWalletError(err)
-      setError(parsedError)
-      logError(parsedError, ErrorSeverity.ERROR)
+      const walletError: WalletError = {
+        type: 'disconnection',
+        message: parsedError.message,
+        errorId: crypto.randomUUID(),
+      }
+      setError(walletError)
+      logger.error("Wallet disconnection error:", err)
     }
   }, [wagmiDisconnect, showToast])
 
@@ -156,6 +188,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     togglePersistence,
     recentErrors,
     clearRecentErrors,
+    lastConnectedWallet,
   }
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>

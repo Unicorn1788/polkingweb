@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react"
 import { useAccount, useBalance } from "wagmi"
 import { formatEther, Address } from "viem"
-import { 
-  stakePOL, 
-  getActiveStakesCount, 
-  getStakingPlan, 
+import {
+  getStakingPlan,
   getPlanRate,
   getUserStakingAmount,
-  getRewardsData
-} from "@/utils/contract-utils"
+  stakePOL,
+  getActiveStakesCount,
+  claimRewards,
+  getRewardsData,
+} from "@/lib/wagmi-config"
 import { useToast } from "@/context/toast-context"
 
 export interface StakingPlan {

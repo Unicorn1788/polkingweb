@@ -3,7 +3,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, Globe2, Shield, Users, TrendingUp, Clock } from "lucide-react"
 import { useContractRead } from "wagmi"
-import { POLKING_ADDRESS } from "@/utils/contract-utils"
+import { POLKING_ADDRESS } from "@/lib/wagmi-config"
 import { formatEther, type Address } from "viem"
 import POLKING_ABI from "@/app/contracts/POLKING.json"
 

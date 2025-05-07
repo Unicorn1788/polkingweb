@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
   "contractName": "IPOLKINGRANK",
-  "sourceName": "contracts/POLKING.sol",
+  "sourceName": "contracts/IPOLKINGRANK.sol",
   "abi": [
     {
       "inputs": [
@@ -72,9 +72,5 @@
       "stateMutability": "nonpayable",
       "type": "function"
     }
-  ],
-  "bytecode": "0x",
-  "deployedBytecode": "0x",
-  "linkReferences": {},
-  "deployedLinkReferences": {}
+  ]
 }

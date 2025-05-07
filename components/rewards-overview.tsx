@@ -5,9 +5,11 @@ import { motion, useSpring, useMotionValue, useTransform } from "framer-motion"
 import { Gauge, Wallet, CreditCard, TrendingUp } from "lucide-react"
 import { useWallet } from "@/context/wallet-context"
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi"
-import { POLKING_ADDRESS } from "@/utils/contract-utils"
+import { POLKING_ADDRESS } from "@/lib/wagmi-config"
 import { toast } from "sonner"
 import { formatEther } from "viem"
+import { useQuery } from '@tanstack/react-query'
+import { useStakingQuery } from '@/hooks/use-staking-query'
 
 // Define ABI for the specific functions we're using
 const rewardsAbi = [
@@ -54,7 +56,7 @@ const RewardsOverview = () => {
   const { address } = useAccount()
   const [liveRewards, setLiveRewards] = useState(0)
   const [rewardsPerSecond, setRewardsPerSecond] = useState(0)
-  const [isClaiming, setIsClaiming] = useState(false)
+  const { rewardsData, claimRewards, isClaiming } = useStakingQuery(address)
   const lastUpdateTime = useRef(Date.now())
   const springValue = useSpring(0, { stiffness: 100, damping: 30 })
   const displayValue = useMotionValue("0.0000")
@@ -154,7 +156,7 @@ const RewardsOverview = () => {
     return () => cancelAnimationFrame(animationFrame);
   }, [isConnected, address, liveRewardsData]);
 
-  // Handle claim rewards
+  // Update claim rewards handler
   const handleClaimRewards = async () => {
     if (!isConnected || !address) {
       toast.error("Please connect your wallet.")
@@ -163,19 +165,11 @@ const RewardsOverview = () => {
     }
 
     try {
-      setIsClaiming(true)
-      
-      await writeContract({
-        address: POLKING_ADDRESS,
-        abi: rewardsAbi,
-        functionName: "claim",
-      })
-      
+      await claimRewards()
       toast.success("Claim transaction submitted!")
     } catch (error) {
       console.error("Claim error:", error)
       toast.error("Failed to claim rewards. Please try again.")
-      setIsClaiming(false)
     }
   }
 
@@ -186,7 +180,6 @@ const RewardsOverview = () => {
       setLiveRewards(0)
       springValue.set(0)
       displayValue.set("0.0000")
-      setIsClaiming(false)
     }
   }, [isTransactionSuccess])
 

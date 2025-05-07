@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useWallet } from "@/context/wallet-context"
 import { QRCodeSVG } from "qrcode.react"
 import { useReadContract } from "wagmi"
-import { POLKING_ADDRESS, contractConfig } from "@/utils/contract-utils"
+import { POLKING_ADDRESS, contractConfig } from "@/lib/wagmi-config"
 import { formatEther } from "viem"
 import POLKING_ABI from "@/app/contracts/POLKING.json"
 

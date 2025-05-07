@@ -3,6 +3,9 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import ClientLayout from "./client-layout"
 import { metadata } from "./metadata"
+import { Providers } from "./providers"
+import { SpeedInsights } from "@vercel/speed-insights/next"
+import { Analytics } from "@vercel/analytics/next"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -14,7 +17,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         className={`${inter.className} bg-black text-white antialiased flex flex-col min-h-screen overflow-x-hidden`}
       >
-        <ClientLayout>{children}</ClientLayout>
+        <Providers>
+          <ClientLayout>{children}</ClientLayout>
+          <SpeedInsights />
+          <Analytics />
+        </Providers>
       </body>
     </html>
   )
