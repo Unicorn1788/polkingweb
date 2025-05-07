@@ -66,7 +66,7 @@ export default function WalletCard() {
         <WalletConnectionStatus />
       </CardHeader>
 
-      <CardContent scrollable={!isExpanded}>
+      <CardContent className={!isExpanded ? "max-h-[300px] overflow-y-auto" : ""}>
         <div className="space-y-4">
           {/* Address Section */}
           <div className="bg-[#0f0c1a]/50 rounded-xl p-3 border border-[#a58af8]/10">

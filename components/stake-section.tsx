@@ -192,7 +192,7 @@ const StakeSection = () => {
       showToast({
         type: "success",
         title: "Staking Successful",
-        message: `Successfully staked ${amount} MATIC!`
+        message: `Successfully staked ${amount} POL!`
       })
       setAmount(0)
       setTxHash(undefined)
@@ -285,28 +285,36 @@ const StakeSection = () => {
 
   // Update stake function
   const handleStake = async () => {
-    const stakeAmount = stakingAmount ?? 0;
-    
-    if (stakeAmount <= 0 || stakeAmount > balance || !isConnected) {
+    if (!isConnected) {
       showToast({
         type: "error",
-        title: "Invalid Stake",
-        message: stakeAmount <= 0 
-          ? "Please enter an amount to stake" 
-          : "Insufficient balance for staking"
+        title: "Wallet Not Connected",
+        message: "Please connect your wallet to stake"
+      })
+      return
+    }
+    
+    if (amount <= 0) {
+      showToast({
+        type: "error",
+        title: "Invalid Amount",
+        message: "Please enter an amount to stake"
+      })
+      return
+    }
+    
+    if (amount > balance) {
+      showToast({
+        type: "error",
+        title: "Insufficient Balance",
+        message: "You don't have enough POL to stake this amount"
       })
       return
     }
     
     try {
-      await stake(stakeAmount)
-      
-      showToast({
-        type: "success",
-        title: "Staking Successful",
-        message: `Successfully staked ${stakeAmount} POL!`
-      })
-      
+      setIsStaking(true)
+      await stake(amount)
       setAmount(0)
     } catch (error) {
       console.error("Staking error:", error)
@@ -315,16 +323,18 @@ const StakeSection = () => {
         title: "Staking Failed",
         message: "There was an error while staking. Please try again."
       })
+    } finally {
+      setIsStaking(false)
     }
   }
 
   // Update the button state
-  const isButtonDisabled = !writeContract || amount <= 0 || amount > balance || !isConnected || useStakingQueryIsStaking || isTransactionPending
+  const isButtonDisabled = amount <= 0 || amount > balance || !isConnected || isStaking || isTransactionPending
 
   // Update the button text
   const getButtonText = () => {
     if (isTransactionPending) return "Transaction Pending..."
-    if (useStakingQueryIsStaking) return "Staking..."
+    if (isStaking) return "Staking..."
     if (amount <= 0) return "Enter Amount"
     if (amount > balance) return "Insufficient Balance"
     if (!isConnected) return "Connect Wallet"

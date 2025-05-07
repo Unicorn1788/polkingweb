@@ -2,7 +2,7 @@ import { Address, parseEther } from "viem"
 import { createConfig, http } from "wagmi"
 import { polygon } from "wagmi/chains"
 import { readContract, writeContract } from "@wagmi/core"
-import { injected, walletConnect } from "wagmi/connectors"
+import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors"
 import POLKING from "@/app/contracts/POLKING.json"
 import { logger } from "./logger"
 
@@ -11,11 +11,37 @@ export const POLKING_ADDRESS = "0x33041aaB2d4E13881Dc4AF8e0E0001E25666503A" as A
 // Get WalletConnect project ID from environment variable
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ""
 
-// Define custom window type for Phantom
+// Define custom window type for wallets
 declare global {
   interface Window {
+    ethereum?: {
+      isMetaMask?: boolean
+      isCoinbaseWallet?: boolean
+      isTokenPocket?: boolean
+      providers?: Array<{
+        isMetaMask?: boolean
+        isCoinbaseWallet?: boolean
+        isTokenPocket?: boolean
+        [key: string]: any
+      }>
+      request?: (args: { method: string; params?: any[] }) => Promise<any>
+      on?: (event: string, callback: (...args: any[]) => void) => void
+      removeListener?: (event: string, callback: (...args: any[]) => void) => void
+      [key: string]: any
+    }
     phantom?: {
       ethereum?: any
+    }
+    tokenpocket?: {
+      ethereum?: any
+    }
+    coinbaseWalletExtension?: {
+      isMetaMask?: boolean
+      isConnected?: () => boolean
+      providers?: any[]
+      request?: (args: { method: string; params?: any[] }) => Promise<any>
+      on?: (event: string, callback: (...args: any[]) => void) => void
+      removeListener?: (event: string, callback: (...args: any[]) => void) => void
     }
   }
 }
@@ -26,7 +52,11 @@ export const config = createConfig({
   connectors: [
     // MetaMask
     injected({
-      target: "metaMask",
+      target: {
+        id: 'metaMask',
+        name: 'MetaMask',
+        provider: typeof window !== 'undefined' ? window.ethereum : undefined,
+      },
       shimDisconnect: true,
     }),
     // WalletConnect
@@ -40,14 +70,29 @@ export const config = createConfig({
         icons: ["https://polking.io/images/polking-logo.png"],
       },
     }),
+    // Coinbase Wallet
+    coinbaseWallet({
+      appName: "Polking Finance",
+      appLogoUrl: "https://polking.io/images/polking-logo.png",
+      darkMode: true,
+      enableMobileWalletLink: true,
+    }),
     // TokenPocket
     injected({
-      target: "tokenPocket",
+      target: {
+        id: 'tokenPocket',
+        name: 'TokenPocket',
+        provider: typeof window !== 'undefined' ? window.tokenpocket?.ethereum : undefined,
+      },
       shimDisconnect: true,
     }),
     // Phantom
     injected({
-      target: "phantom",
+      target: {
+        id: 'phantom',
+        name: 'Phantom',
+        provider: typeof window !== 'undefined' ? window.phantom?.ethereum : undefined,
+      },
       shimDisconnect: true,
     }),
   ],

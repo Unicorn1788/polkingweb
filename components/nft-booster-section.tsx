@@ -7,8 +7,11 @@ import { useWallet } from "@/context/wallet-context"
 import { useReadContract, useWriteContract } from "wagmi"
 import { POLKING_ADDRESS } from "@/lib/wagmi-config"
 import { formatEther, Address } from "viem"
-import { abi as POLKING_ABI } from "@/app/contracts/POLKING.json"
+import POLKING_ABI from "@/app/contracts/POLKING.json"
 import { useToast } from "@/context/toast-context"
+
+// Get the ABI from the imported JSON
+const { abi } = POLKING_ABI
 
 // Define rank types
 type RankType = 0 | 1 | 2 | 3 | 4;
@@ -40,7 +43,7 @@ const rankProgressionData = {
     poolShare: 10,
     nextRank: "Duke",
     requiredVolume: 45000,
-    upgradeTime: 25 * 24 * 60 * 60, // 25 days in seconds
+    upgradeTime: 100 * 24 * 60 * 60, // 100 days in seconds
   },
   3: {
     name: "Duke",
@@ -49,7 +52,7 @@ const rankProgressionData = {
     poolShare: 15,
     nextRank: "King",
     requiredVolume: 100000,
-    upgradeTime: 25 * 24 * 60 * 60, // 25 days in seconds
+    upgradeTime: 150 * 24 * 60 * 60, // 150 days in seconds
   },
   4: {
     name: "King",
@@ -92,7 +95,7 @@ const NFTBoosterSection = () => {
   // Get user's current rank
   const { data: userRank, isLoading: rankLoading } = useReadContract({
     address: POLKING_ADDRESS,
-    abi: POLKING_ABI,
+    abi: abi,
     functionName: 'getUserRank',
     args: [address || "0x0000000000000000000000000000000000000000" as Address],
   })
@@ -100,7 +103,7 @@ const NFTBoosterSection = () => {
   // Get top 2 branch totals
   const { data: branchTotals, isLoading: branchLoading } = useReadContract({
     address: POLKING_ADDRESS,
-    abi: POLKING_ABI,
+    abi: abi,
     functionName: 'getTop2BranchTotals',
     args: [address || "0x0000000000000000000000000000000000000000" as Address],
   })
@@ -108,13 +111,13 @@ const NFTBoosterSection = () => {
   // Get user balance
   const { data: userBalance } = useReadContract ({
     address: POLKING_ADDRESS,
-    abi: POLKING_ABI,
-    functionName: 'balanceOf',
+    abi: abi,
+    functionName: 'top1Address',
     args: [address || "0x0000000000000000000000000000000000000000" as Address],
   })
 
-  // Extract current rank data
-  const currentRank = rankProgressionData[Number(userRank || 0) as RankType]
+  // Extract current rank data with default value
+  const currentRank = rankProgressionData[Number(userRank || 0) as RankType] || rankProgressionData[0]
 
   // Extract branch totals data
   const { top1Address, top1Volume, top2Address, top2Volume } = (branchTotals as BranchTotals) || {
@@ -132,7 +135,7 @@ const NFTBoosterSection = () => {
 
   // Calculate progress percentages for branches
   const getProgressPercentage = (volume: bigint) => {
-    if (!currentRank.requiredVolume) return 0
+    if (!currentRank?.requiredVolume) return 0
     return Math.min(100, (Number(volume) / currentRank.requiredVolume) * 100)
   }
 
@@ -144,13 +147,13 @@ const NFTBoosterSection = () => {
     {
       address: "0x0000000000000000000000000000000000000000" as Address,
       volume: 0,
-      targetVolume: 0,
+      targetVolume: currentRank?.requiredVolume || 0,
       progress: 0
     },
     {
       address: "0x0000000000000000000000000000000000000000" as Address,
       volume: 0,
-      targetVolume: 0,
+      targetVolume: currentRank?.requiredVolume || 0,
       progress: 0
     }
   ])
@@ -239,7 +242,7 @@ const NFTBoosterSection = () => {
       showToast({ type: "loading", title: "Processing Burn", message: "Please wait while we process your transaction" })
       await writeFastTrack({
         address: POLKING_ADDRESS,
-        abi: POLKING_ABI,
+        abi: abi,
         functionName: "processfastTrackCooldown",
         args: [BigInt(requiredAmount)],
       })
@@ -262,7 +265,7 @@ const NFTBoosterSection = () => {
       showToast({ type: "loading", title: "Processing Upgrade", message: "Please wait while we process your rank upgrade" })
       await writeUpgradeRank({
         address: POLKING_ADDRESS,
-        abi: POLKING_ABI,
+        abi: abi,
         functionName: "claimRank",
       })
       showToast({ type: "success", title: "Rank Upgraded", message: `Successfully upgraded to ${currentRank.nextRank}` })

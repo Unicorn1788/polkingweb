@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 import { useStakingNotifications } from "@/services/staking-notification-service"
 import { useWallet } from "@/context/wallet-context"
-import { toast } from "sonner"
+import { useToast } from "@/context/toast-context"
 
 // Mock contract events for demonstration
 const MOCK_EVENTS = {
@@ -17,8 +17,9 @@ interface StakingNotificationListenerProps {
 }
 
 const StakingNotificationListener = ({ onContractComplete }: StakingNotificationListenerProps) => {
-  const { notifyContractCompletion, notifyCapacityWarning, notifyRewardsAvailable } = useStakingNotifications()
+  const { notifyStakeSuccess, notifyRewardsAvailable, notifyTierUpgrade } = useStakingNotifications()
   const { isConnected, address } = useWallet()
+  const { showToast } = useToast()
   const lastNotificationTime = useRef<Record<string, number>>({})
 
   // Refs for intervals
@@ -51,8 +52,10 @@ const StakingNotificationListener = ({ onContractComplete }: StakingNotification
           lastNotificationTime.current[contractId] = now
 
           // Show toast notification
-          toast.success("Staking contract completed!", {
-            description: `Your ${contract.amount} POL staking contract has completed.`,
+          showToast({
+            type: "success",
+            title: "Staking contract completed!",
+            message: `Your ${contract.amount} POL staking contract has completed.`,
             duration: 5000,
           })
 
@@ -69,7 +72,7 @@ const StakingNotificationListener = ({ onContractComplete }: StakingNotification
     const interval = setInterval(checkContractCompletions, 60 * 1000)
 
     return () => clearInterval(interval)
-  }, [address, onContractComplete])
+  }, [address, onContractComplete, showToast])
 
   // Check for capacity warnings
   useEffect(() => {
@@ -84,9 +87,12 @@ const StakingNotificationListener = ({ onContractComplete }: StakingNotification
 
         if (highCapacityContracts.length > 0) {
           const contract = highCapacityContracts[0]
-          notifyCapacityWarning({
-            tier: contract.tier,
-            percentageFilled: contract.percentageFilled,
+          
+          // Use tier upgrade notification for capacity warning
+          notifyTierUpgrade({
+            currentTier: contract.tier,
+            nextTier: `${contract.tier}+`,
+            amountNeeded: 1000
           })
         }
       } catch (error) {
@@ -103,7 +109,7 @@ const StakingNotificationListener = ({ onContractComplete }: StakingNotification
         clearInterval(capacityCheckIntervalRef.current)
       }
     }
-  }, [isConnected, notifyCapacityWarning])
+  }, [isConnected, notifyTierUpgrade])
 
   // Check for available rewards
   useEffect(() => {

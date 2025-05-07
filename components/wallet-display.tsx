@@ -110,8 +110,9 @@ export default function WalletDisplay() {
 
                 <button
                   onClick={() => {
-                    disconnect()
                     setIsDropdownOpen(false)
+                    // Directly call disconnect - debouncing handled in context
+                    disconnect()
                   }}
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-left"
                 >

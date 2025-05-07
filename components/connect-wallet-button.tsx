@@ -77,11 +77,7 @@ export default function ConnectWalletButton({
       setIsLoading(true)
       await openWalletModal()
     } catch (error) {
-      showToast({
-        type: "error",
-        title: "Connection Error",
-        message: "Failed to connect wallet. Please try again.",
-      })
+      handleError(error, { component: "ConnectWalletButton", action: "connect" })
     } finally {
       setIsLoading(false)
     }
@@ -90,16 +86,9 @@ export default function ConnectWalletButton({
   // Handle disconnect with error handling
   const handleDisconnect = () => {
     try {
-      disconnect()
       setIsDropdownOpen(false)
-
-      // Show toast notification
-      showToast({
-        type: "info",
-        title: "Wallet Disconnected",
-        message: "Your wallet has been disconnected",
-        duration: 3000,
-      })
+      // The disconnect function now handles debouncing internally
+      disconnect()
     } catch (error) {
       handleError(error, { component: "ConnectWalletButton", action: "disconnect" })
     }
